@@ -33,7 +33,7 @@ func main() {
 	fmt.Println("ciphertexttext1: " + ciphertext1.C.String())
 	fmt.Println("ciphertextext2: " + ciphertext2.C.String())
 
-	ciphertextsum := pk.ESub(ciphertext1, ciphertext2)
+	ciphertextsum := pk.EAdd(ciphertext1, ciphertext2)
 	ciphertextmult := pk.ECMult(ciphertext1, b(3))
 
 	plaintextresult := sk.Decrypt(ciphertextsum)
