@@ -33,8 +33,8 @@ type ThresholdKeyGenerator struct {
 	polynomialCoefficients []*big.Int
 }
 
-//  preferable way to counstruct the ThresholdKeyGenerator.  No verification
-//  is done on the input values.  You need to bu sure that nbits is big enough
+//  preferable way to create the ThresholdKeyGenerator.  No verification
+//  is done on the input values.  You need to be sure that nbits is big enough
 //  and that Threshold > TotalNumberOfDecryptionServers / 2
 func GetThresholdKeyGenerator(nbits, TotalNumberOfDecryptionServers, Threshold int, random io.Reader) *ThresholdKeyGenerator {
 	ret := new(ThresholdKeyGenerator)
@@ -66,7 +66,6 @@ func (this *ThresholdKeyGenerator) InitShortcuts() {
 	this.m = new(big.Int).Mul(this.p1, this.q1)
 	this.nSquare = new(big.Int).Mul(this.n, this.n)
 	this.nm = new(big.Int).Mul(this.n, this.m)
-
 }
 
 func (this *ThresholdKeyGenerator) ArePsAndQsGood() bool {
@@ -108,7 +107,7 @@ func (this *ThresholdKeyGenerator) InitD() {
 	this.d = new(big.Int).Mul(mInverse, this.m)
 }
 
-func (this *ThresholdKeyGenerator) InitNumerialValues() error {
+func (this *ThresholdKeyGenerator) InitNumericalValues() error {
 	if err := this.InitPsAndQs(); err != nil {
 		return err
 	}
@@ -188,7 +187,7 @@ func (this *ThresholdKeyGenerator) CreatePrivateKeys() []*ThresholdPrivateKey {
 }
 
 func (this *ThresholdKeyGenerator) Generate() ([]*ThresholdPrivateKey, error) {
-	if err := this.InitNumerialValues(); err != nil {
+	if err := this.InitNumericalValues(); err != nil {
 		return nil, err
 	}
 	if err := this.GenerateHidingPolynomial(); err != nil {

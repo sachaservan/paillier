@@ -22,7 +22,7 @@ type PublicKey struct {
 
 type SecretKey struct {
 	PublicKey
-	Lambda, Lm, Mu *big.Int
+	Alpha, Lambda, Lm, Mu *big.Int
 }
 
 func (pk *PublicKey) GetNSquare() *big.Int {
@@ -40,7 +40,6 @@ func (pk *PublicKey) EAdd(ct1, ct2 *Ciphertext) *Ciphertext {
 }
 
 func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
-
 	neg := new(big.Int).ModInverse(ct2.C, pk.GetNSquare())
 	m := new(big.Int).Mul(ct1.C, neg)
 	return &Ciphertext{new(big.Int).Mod(m, pk.GetNSquare())}
@@ -52,24 +51,20 @@ func (pk *PublicKey) ECMult(ct *Ciphertext, k *big.Int) *Ciphertext {
 }
 
 func (sk *SecretKey) String() string {
-	ret := fmt.Sprintf("g     :  %x", sk.G)
-	ret += fmt.Sprintf("n     :  %x", sk.N)
-	ret += fmt.Sprintf("lambda:  %x", sk.Lambda)
-	ret += fmt.Sprintf("mu    :  %x", sk.Mu)
+	ret := fmt.Sprintf("g     :  %s\n", sk.G.String())
+	ret += fmt.Sprintf("n     :  %s\n", sk.N.String())
+	ret += fmt.Sprintf("lambda:  %s\n", sk.Lambda.String())
+	ret += fmt.Sprintf("alpha :  %s\n", sk.Alpha.String())
+	ret += fmt.Sprintf("mu    :  %s\n", sk.Mu.String())
 	return ret
 }
 
-// TODO: use this when using the modified scheme
-// func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
-// 	num := L(new(big.Int).Exp(ciphertext.C, priv.Lambda, priv.GetNSquare()), priv.N)
-// 	den := L(new(big.Int).Exp(priv.G, priv.Lambda, priv.GetNSquare()), priv.N)
-// 	msg := new(big.Int).Mod(new(big.Int).Div(num, den), priv.N)
-// 	return msg
-// }
-
 func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
-	tmp := new(big.Int).Exp(ciphertext.C, priv.Lambda, priv.GetNSquare())
-	msg := new(big.Int).Mod(new(big.Int).Mul(L(tmp, priv.N), priv.Mu), priv.N)
+
+	num := L(new(big.Int).Exp(ciphertext.C, priv.Alpha, priv.GetNSquare()), priv.N)
+	den := L(new(big.Int).Exp(priv.G, priv.Alpha, priv.GetNSquare()), priv.N)
+	den = den.ModInverse(den, priv.N)
+	msg := new(big.Int).Mod(new(big.Int).Mul(num, den), priv.N)
 	return msg
 }
 
@@ -79,17 +74,19 @@ func (pk *PublicKey) Encrypt(pt *big.Int) *Ciphertext {
 		panic(err)
 	}
 
+	r = big.NewInt(1)
+
 	nSquare := pk.GetNSquare()
 
 	gm := new(big.Int).Exp(pk.G, pt, nSquare)
-	gr := new(big.Int).Exp(pk.G, r, nSquare)
-	gr = gr.Exp(gr, pk.N, nSquare)
+	gr := new(big.Int).Exp(pk.G, pk.N, nSquare)
+	gr.Exp(gr, r, nSquare)
 
 	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(gm, gr), nSquare)}
 }
 
 func L(u, n *big.Int) *big.Int {
-	t := new(big.Int).Add(u, big.NewInt(-1))
+	t := new(big.Int).Sub(u, big.NewInt(1))
 	return new(big.Int).Div(t, n)
 }
 
@@ -111,16 +108,45 @@ func computeLamda(p, q *big.Int) *big.Int {
 	return LCM(minusOne(p), minusOne(q))
 }
 
-func CreateSecretKey(p, q *big.Int) *SecretKey {
+func CreateSecretKey(bits int) *SecretKey {
+
+	p, alpha1, _ := GenerateSafePrimes(bits, rand.Reader)
+	q, alpha2, _ := GenerateSafePrimes(bits, rand.Reader)
+
+	for p.Cmp(q) == 0 {
+		p, alpha1, _ = GenerateSafePrimes(bits, rand.Reader)
+		q, alpha2, _ = GenerateSafePrimes(bits, rand.Reader)
+	}
+
+	p2 := new(big.Int).Mul(p, p)
+	q2 := new(big.Int).Mul(q, q)
+
+	g1 := new(big.Int).Exp(TWO, new(big.Int).Div(minusOne(p), alpha1), p)
+	g2 := new(big.Int).Exp(TWO, new(big.Int).Div(minusOne(q), alpha2), q)
+
+	z1 := new(big.Int).ModInverse(p2, q2)
+	z2 := new(big.Int).ModInverse(q2, p2)
+
+	g1 = new(big.Int).Mul(g1, z1)
+	g1.Mul(g1, p2)
+	g2 = new(big.Int).Mul(g2, z2)
+	g2.Mul(g2, q2)
+
 	n := new(big.Int).Mul(p, q)
+	n2 := new(big.Int).Mul(n, n)
+
+	g := new(big.Int).Add(g1, g2)
+	g.Mod(g, n2)
+
+	alpha := new(big.Int).Mul(alpha1, alpha2)
 	lambda := new(big.Int).Mul(minusOne(p), minusOne(q))
-	g := new(big.Int).Add(n, big.NewInt(1))
-	mu := new(big.Int).ModInverse(lambda, n)
+	mu := new(big.Int).ModInverse(alpha, n)
 	return &SecretKey{
 		PublicKey: PublicKey{
 			N: n,
 			G: g,
 		},
+		Alpha:  alpha,
 		Lambda: lambda,
 		Mu:     mu,
 	}

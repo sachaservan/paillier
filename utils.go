@@ -33,6 +33,7 @@ func GenerateSafePrimes(nbits int, random io.Reader) (p, q *big.Int, err error) 
 		if p.ProbablyPrime(50) { //a probability of 2**-100 of not being prime
 			return
 		}
+
 	}
 }
 

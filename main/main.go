@@ -16,9 +16,9 @@ func n(i *big.Int) int {
 
 func main() {
 
-	p := big.NewInt(101)
-	q := big.NewInt(1021)
-	sk := paillier.CreateSecretKey(p, q)
+	// p := big.NewInt(101)
+	// q := big.NewInt(1021)
+	sk := paillier.CreateSecretKey(10)
 	pk := sk.PublicKey
 
 	plaintext1 := b(21)
@@ -32,6 +32,9 @@ func main() {
 
 	fmt.Println("ciphertexttext1: " + ciphertext1.C.String())
 	fmt.Println("ciphertextext2: " + ciphertext2.C.String())
+
+	fmt.Println("plaintext1: " + sk.Decrypt(ciphertext1).String())
+	fmt.Println("plaintext2: " + sk.Decrypt(ciphertext2).String())
 
 	ciphertextsum := pk.EAdd(ciphertext1, ciphertext2)
 	ciphertextmult := pk.ECMult(ciphertext1, b(3))

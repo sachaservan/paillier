@@ -103,12 +103,12 @@ func TestInitD(t *testing.T) {
 	}
 }
 
-func TestInitNumerialValues(t *testing.T) {
+func TestInitNumericalValues(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
 	tkh.nbits = 10
 	tkh.Random = rand.Reader
 
-	if err := tkh.InitNumerialValues(); err != nil {
+	if err := tkh.InitNumericalValues(); err != nil {
 		t.Error(err)
 	}
 }
@@ -118,7 +118,7 @@ func TestGenerateHidingPolynomial(t *testing.T) {
 	tkh.nbits = 10
 	tkh.Threshold = 10
 	tkh.Random = rand.Reader
-	if err := tkh.InitNumerialValues(); err != nil {
+	if err := tkh.InitNumericalValues(); err != nil {
 		t.Error(err)
 		return
 	}
@@ -159,7 +159,7 @@ func TestCreateShares(t *testing.T) {
 	tkh.Threshold = 10
 	tkh.TotalNumberOfDecryptionServers = 100
 	tkh.Random = rand.Reader
-	if err := tkh.InitNumerialValues(); err != nil {
+	if err := tkh.InitNumericalValues(); err != nil {
 		t.Error(err)
 		return
 	}
@@ -187,7 +187,7 @@ func TestCreateViArray(t *testing.T) {
 
 func TestGetThresholdKeyGenerator(t *testing.T) {
 	tkh := GetThresholdKeyGenerator(50, 10, 6, rand.Reader)
-	if err := tkh.InitNumerialValues(); err != nil {
+	if err := tkh.InitNumericalValues(); err != nil {
 		t.Error(nil)
 	}
 }

@@ -4,27 +4,33 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
+	"time"
 )
 
 type ThresholdKey struct {
 	PublicKey
 	TotalNumberOfDecryptionServers int
 	Threshold                      int
+	Delta                          *big.Int
 	V                              *big.Int
 	Vi                             []*big.Int
 }
 
 // returns the value of (4*delta**2)** -1  mod n
 func (this *ThresholdKey) CombineSharesConstant() *big.Int {
-	tmp := new(big.Int).Mul(FOUR, new(big.Int).Mul(this.Delta(), this.Delta()))
+	tmp := new(big.Int).Mul(FOUR, new(big.Int).Mul(this.ComputeDelta(), this.ComputeDelta()))
 	return (&big.Int{}).ModInverse(tmp, this.N)
 }
 
 // returns the factorial of the number of TotalNumberOfDecryptionServers
-func (this *ThresholdKey) Delta() *big.Int {
-	return Factorial(this.TotalNumberOfDecryptionServers)
+func (this *ThresholdKey) ComputeDelta() *big.Int {
+	if this.Delta == nil {
+		this.Delta = Factorial(this.TotalNumberOfDecryptionServers)
+	}
+	return this.Delta
 }
 
 func (this *ThresholdKey) MakeVerificationBeforeCombiningPartialDecryptions(shares []*PartialDecryption) error {
@@ -48,7 +54,7 @@ func (this *ThresholdKey) UpdateLambda(share1, share2 *PartialDecryption, lambda
 }
 
 func (this *ThresholdKey) ComputeLambda(share *PartialDecryption, shares []*PartialDecryption) *big.Int {
-	lambda := this.Delta()
+	lambda := this.ComputeDelta()
 	for _, share2 := range shares {
 		if share2.Id != share.Id {
 			lambda = this.UpdateLambda(share, share2, lambda)
@@ -100,6 +106,10 @@ func (this *ThresholdKey) CombinePartialDecryptions(shares []*PartialDecryption)
 		cprime = this.updateCprime(cprime, lambda, share)
 	}
 
+	if cprime.Cmp(ONE) == 0 {
+		return big.NewInt(0), nil
+	}
+
 	// scalefactor set to zero here since it is updated later in the decryption phase
 	return this.computeDecryption(cprime), nil
 }
@@ -145,8 +155,11 @@ type ThresholdPrivateKey struct {
 func (this *ThresholdPrivateKey) Decrypt(c *big.Int) *PartialDecryption {
 	ret := new(PartialDecryption)
 	ret.Id = this.Id
-	exp := new(big.Int).Mul(this.Share, new(big.Int).Mul(TWO, this.Delta()))
+	stime := time.Now()
+
+	exp := new(big.Int).Mul(this.Share, new(big.Int).Mul(TWO, this.ComputeDelta()))
 	ret.Decryption = new(big.Int).Exp(c, exp, this.GetNSquare())
+	fmt.Println(time.Now().Sub(stime).String())
 
 	return ret
 }
@@ -171,7 +184,7 @@ func (this *ThresholdPrivateKey) GetThresholdKey() *ThresholdKey {
 }
 
 func (this *ThresholdPrivateKey) ComputeZ(r, e *big.Int) *big.Int {
-	tmp := new(big.Int).Mul(e, this.Delta())
+	tmp := new(big.Int).Mul(e, this.ComputeDelta())
 	tmp = new(big.Int).Mul(tmp, this.Share)
 	return new(big.Int).Add(r, tmp)
 

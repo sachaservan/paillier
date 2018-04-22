@@ -24,25 +24,10 @@ func TestL(t *testing.T) {
 	}
 }
 
-func TestComputeMu(t *testing.T) {
-	p := big.NewInt(13)
-	q := big.NewInt(11)
-
-	lambda := computeLamda(p, q)
-	g := big.NewInt(5000)
-	n := new(big.Int).Mul(p, q)
-
-	exp := big.NewInt(3)
-	if !reflect.DeepEqual(computeMu(g, lambda, n), exp) {
-		t.Error("lambda is not well computed")
-	}
-}
-
 func TestEncryptDecryptSmall(t *testing.T) {
-	p := big.NewInt(13)
-	q := big.NewInt(11)
+
 	for i := 1; i < 10; i++ {
-		privateKey := CreateSecretKey(p, q)
+		privateKey := CreateSecretKey(10)
 
 		ciphertext := privateKey.Encrypt(big.NewInt(100))
 
@@ -55,7 +40,7 @@ func TestEncryptDecryptSmall(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	privateKey := CreateSecretKey(big.NewInt(13), big.NewInt(11))
+	privateKey := CreateSecretKey(10)
 	pk := privateKey.PublicKey
 
 	ciphertext1 := pk.Encrypt(big.NewInt(12))
