@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
-	"time"
+
+	gmp "github.com/ncw/gmp"
 )
 
 type ThresholdKey struct {
@@ -155,11 +155,15 @@ type ThresholdPrivateKey struct {
 func (this *ThresholdPrivateKey) Decrypt(c *big.Int) *PartialDecryption {
 	ret := new(PartialDecryption)
 	ret.Id = this.Id
-	stime := time.Now()
+	//stime := time.Now()
 
 	exp := new(big.Int).Mul(this.Share, new(big.Int).Mul(TWO, this.ComputeDelta()))
-	ret.Decryption = new(big.Int).Exp(c, exp, this.GetNSquare())
-	fmt.Println(time.Now().Sub(stime).String())
+	gmpExp := gmp.NewInt(0).SetBytes(exp.Bytes())
+	gmpC := gmp.NewInt(0).SetBytes(c.Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(this.GetNSquare().Bytes())
+
+	ret.Decryption = big.NewInt(0).SetBytes(new(gmp.Int).Exp(gmpC, gmpExp, gmpN2).Bytes())
+	//fmt.Println(time.Now().Sub(stime).String())
 
 	return ret
 }

@@ -3,6 +3,7 @@ package paillier
 import (
 	"crypto/rand"
 	"io"
+	"log"
 	"math/big"
 )
 
@@ -10,6 +11,16 @@ var ZERO = big.NewInt(0)
 var ONE = big.NewInt(1)
 var TWO = big.NewInt(2)
 var FOUR = big.NewInt(4)
+
+// generates a new random number < max
+func CryptoRandom(max *big.Int) *big.Int {
+	rand, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		log.Println(err)
+	}
+
+	return rand
+}
 
 //  returns n! = n*(n-1)*(n-2)...3*2*1
 func Factorial(n int) *big.Int {

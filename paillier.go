@@ -17,6 +17,7 @@ type PublicKey struct {
 	K          int      // message space 2^K < N
 	S          int      // security parameter for statistical secure MPC
 	V          int      // n choose t where t is the corruption threshold
+	P          *big.Int // secret share prime
 	FPPrecBits int      // fixed point precision bits
 }
 
