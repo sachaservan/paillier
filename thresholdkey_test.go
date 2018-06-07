@@ -19,7 +19,8 @@ func GetThresholdPrivateKey() *ThresholdPrivateKey {
 func TestDelta(t *testing.T) {
 	tk := new(ThresholdKey)
 	tk.TotalNumberOfDecryptionServers = 6
-	if delta := tk.Delta(); 720 != n(delta) {
+	tk.ComputeDelta()
+	if delta := tk.Delta; 720 != n(delta) {
 		t.Error("Delta is not 720 but", delta)
 	}
 }
