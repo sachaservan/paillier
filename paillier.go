@@ -74,15 +74,10 @@ func (pk *PublicKey) Encrypt(pt *big.Int) *Ciphertext {
 		panic(err)
 	}
 
-	r = big.NewInt(1)
+	gm := new(big.Int).Exp(pk.G, pt, pk.GetNSquare())
+	rn := new(big.Int).Exp(r, pk.N, pk.GetNSquare())
 
-	nSquare := pk.GetNSquare()
-
-	gm := new(big.Int).Exp(pk.G, pt, nSquare)
-	gr := new(big.Int).Exp(pk.G, pk.N, nSquare)
-	gr.Exp(gr, r, nSquare)
-
-	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(gm, gr), nSquare)}
+	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(gm, rn), pk.GetNSquare())}
 }
 
 func L(u, n *big.Int) *big.Int {
