@@ -49,12 +49,8 @@ func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
 
 func (pk *PublicKey) ECMult(ct *Ciphertext, k *big.Int) *Ciphertext {
 
-	gmpC := gmp.NewInt(0).SetBytes(ct.C.Bytes())
-	gmpK := gmp.NewInt(0).SetBytes(k.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetNSquare().Bytes())
-
-	m := new(gmp.Int).Exp(gmpC, gmpK, gmpN2)
-	return &Ciphertext{new(big.Int).SetBytes(m.Bytes())}
+	m := new(big.Int).Exp(ct.C, k, pk.GetNSquare())
+	return &Ciphertext{m}
 }
 
 func (sk *SecretKey) String() string {
