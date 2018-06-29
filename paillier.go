@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+
+	gmp "github.com/ncw/gmp"
 )
 
 type Ciphertext struct {
@@ -46,8 +48,13 @@ func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
 }
 
 func (pk *PublicKey) ECMult(ct *Ciphertext, k *big.Int) *Ciphertext {
-	m := new(big.Int).Exp(ct.C, k, pk.GetNSquare())
-	return &Ciphertext{m}
+
+	gmpC := gmp.NewInt(0).SetBytes(ct.C.Bytes())
+	gmpK := gmp.NewInt(0).SetBytes(k.Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetNSquare().Bytes())
+
+	m := new(gmp.Int).Exp(gmpC, gmpK, gmpN2)
+	return &Ciphertext{new(big.Int).SetBytes(m.Bytes())}
 }
 
 func (sk *SecretKey) String() string {
@@ -74,10 +81,15 @@ func (pk *PublicKey) Encrypt(pt *big.Int) *Ciphertext {
 		panic(err)
 	}
 
-	gm := new(big.Int).Exp(pk.G, pt, pk.GetNSquare())
-	rn := new(big.Int).Exp(r, pk.N, pk.GetNSquare())
+	gmpG := gmp.NewInt(0).SetBytes(pk.G.Bytes())
+	gmpPt := gmp.NewInt(0).SetBytes(pt.Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetNSquare().Bytes())
+	gmpR := gmp.NewInt(0).SetBytes(r.Bytes())
 
-	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(gm, rn), pk.GetNSquare())}
+	gm := new(gmp.Int).Exp(gmpG, gmpPt, gmpN2)
+	rn := new(gmp.Int).Exp(gmpR, gmpPt, gmpN2)
+
+	return &Ciphertext{new(big.Int).SetBytes(new(gmp.Int).Mod(new(gmp.Int).Mul(gm, rn), gmpN2).Bytes())}
 }
 
 func L(u, n *big.Int) *big.Int {
