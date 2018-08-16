@@ -24,7 +24,7 @@ type PublicKey struct {
 
 type SecretKey struct {
 	PublicKey
-	Alpha, Lambda, Lm, Mu *big.Int
+	Lambda, Lm, Mu *big.Int
 }
 
 func (pk *PublicKey) GetNSquare() *big.Int {
@@ -35,10 +35,21 @@ func (pk *PublicKey) GetNSquare() *big.Int {
 	return pk.N2
 }
 
-// EAdd add ct1 and ct2 homomorphically
-func (pk *PublicKey) EAdd(ct1, ct2 *Ciphertext) *Ciphertext {
-	m := new(big.Int).Mul(ct1.C, ct2.C)
-	return &Ciphertext{new(big.Int).Mod(m, pk.GetNSquare())}
+// EAdd takes an arbitrary number of ciphertexts and returns one that encodes
+// their sum.
+func (pk *PublicKey) EAdd(cts ...*Ciphertext) *Ciphertext {
+	accumulator := big.NewInt(1)
+
+	for _, c := range cts {
+		accumulator = new(big.Int).Mod(
+			new(big.Int).Mul(accumulator, c.C),
+			pk.GetNSquare(),
+		)
+	}
+
+	return &Ciphertext{
+		C: accumulator,
+	}
 }
 
 func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
@@ -47,6 +58,8 @@ func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
 	return &Ciphertext{new(big.Int).Mod(m, pk.GetNSquare())}
 }
 
+// ECMult returns a product of `ciphertext` and `constant` without decrypting `cypher`.
+// D( E(m)^k mod N^2 ) = km mod N
 func (pk *PublicKey) ECMult(ct *Ciphertext, k *big.Int) *Ciphertext {
 
 	gmpC := gmp.NewInt(0).SetBytes(ct.C.Bytes())
@@ -61,35 +74,72 @@ func (sk *SecretKey) String() string {
 	ret := fmt.Sprintf("g     :  %s\n", sk.G.String())
 	ret += fmt.Sprintf("n     :  %s\n", sk.N.String())
 	ret += fmt.Sprintf("lambda:  %s\n", sk.Lambda.String())
-	ret += fmt.Sprintf("alpha :  %s\n", sk.Alpha.String())
 	ret += fmt.Sprintf("mu    :  %s\n", sk.Mu.String())
 	return ret
 }
 
-func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
+// Decodes ciphertext into a plaintext message.
+//
+// c - cyphertext to decrypt
+// N, lambda - key attributes
+//
+// D(c) = [ ((c^lambda) mod N^2) - 1) / N ] lambda^-1 mod N
+//
+// See [KL 08] construction 11.32, page 414.
+func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) (msg *big.Int) {
 
-	num := L(new(big.Int).Exp(ciphertext.C, priv.Alpha, priv.GetNSquare()), priv.N)
-	den := L(new(big.Int).Exp(priv.G, priv.Alpha, priv.GetNSquare()), priv.N)
-	den = den.ModInverse(den, priv.N)
-	msg := new(big.Int).Mod(new(big.Int).Mul(num, den), priv.N)
-	return msg
+	mu := new(big.Int).ModInverse(priv.Lambda, priv.N)
+	tmp := new(big.Int).Exp(ciphertext.C, priv.Lambda, priv.GetNSquare())
+	msg = new(big.Int).Mod(new(big.Int).Mul(L(tmp, priv.N), mu), priv.N)
+	return
 }
 
-func (pk *PublicKey) Encrypt(pt *big.Int) *Ciphertext {
-	r, err := GetRandomNumberInMultiplicativeGroup(pk.N, rand.Reader)
-	if err != nil {
-		panic(err)
+// EncryptWithR encrypts a plaintext into a cypher one with random `r` specified
+// in the argument. The plain text must be smaller that N and bigger than or
+// equal zero. `r` is the randomness used to encrypt the plaintext. `r` must be
+// a random element from a multiplicative group of integers modulo N.
+//
+// If you don't need to use the specific `r`, you should use the `Encrypt`
+// function instead.
+//
+// m - plaintext to encrypt
+// r - randomness used for encryption
+// E(m, r) = [(1 + N) r^N] mod N^2
+//
+// See [KL 08] construction 11.32, page 414.
+func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
+
+	nSquare := pk.GetNSquare()
+
+	// g is _always_ equal n+1
+	// Threshold encryption is safe only for g=n+1 choice.
+	// See [DJN 10], section 5.1
+	g := new(big.Int).Add(pk.N, big.NewInt(1))
+	gm := new(big.Int).Exp(g, m, nSquare)
+	rn := new(big.Int).Exp(r, pk.N, nSquare)
+	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(rn, gm), nSquare)}
+}
+
+// Encrypt a plaintext. The plain text must be smaller that
+// N and bigger than or equal zero.
+//
+// m - plaintext to encrypt
+// E(m, r) = [(1 + N) r^N] mod N^2
+//
+// See [KL 08] construction 11.32, page 414.
+//
+// Returns an error if an error has be returned by io.Reader.
+func (pk *PublicKey) Encrypt(m *big.Int) *Ciphertext {
+
+	var r *big.Int
+	var err error
+	for {
+		r, err = GetRandomNumberInMultiplicativeGroup(pk.N, rand.Reader)
+		if err == nil {
+			break
+		}
 	}
-
-	gmpG := gmp.NewInt(0).SetBytes(pk.G.Bytes())
-	gmpPt := gmp.NewInt(0).SetBytes(pt.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetNSquare().Bytes())
-	gmpR := gmp.NewInt(0).SetBytes(r.Bytes())
-
-	gm := new(gmp.Int).Exp(gmpG, gmpPt, gmpN2)
-	rn := new(gmp.Int).Exp(gmpR, gmpPt, gmpN2)
-
-	return &Ciphertext{new(big.Int).SetBytes(new(gmp.Int).Mod(new(gmp.Int).Mul(gm, rn), gmpN2).Bytes())}
+	return pk.EncryptWithR(m, r)
 }
 
 func L(u, n *big.Int) *big.Int {
@@ -111,50 +161,52 @@ func computeMu(g, lambda, n *big.Int) *big.Int {
 	return new(big.Int).ModInverse(L(u, n), n)
 }
 
-func computeLamda(p, q *big.Int) *big.Int {
-	return LCM(minusOne(p), minusOne(q))
+func computePhi(p, q *big.Int) *big.Int {
+	return new(big.Int).Mul(minusOne(p), minusOne(q))
 }
 
+// CreatePrivateKey generates a Paillier private key accepting two large prime
+// numbers of equal length or other such that gcd(pq, (p-1)(q-1)) = 1.
+//
+// Algorithm is based on approach described in [KL 08], construction 11.32,
+// page 414 which is compatible with one described in [DJN 10], section 3.2
+// except that instead of generating Lambda private key component from LCM
+// of p and q we use Euler's totient function as suggested in [KL 08].
+//
+//     [KL 08]:  Jonathan Katz, Yehuda Lindell, (2008)
+//               Introduction to Modern Cryptography: Principles and Protocols,
+//               Chapman & Hall/CRC
+//
+//     [DJN 10]: Ivan Damgard, Mads Jurik, Jesper Buus Nielsen, (2010)
+//               A Generalization of Paillier’s Public-Key System
+//               with Applications to Electronic Voting
+//               Aarhus University, Dept. of Computer Science, BRICS
 func CreateSecretKey(bits int) *SecretKey {
 
-	p, alpha1, _ := GenerateSafePrimes(bits, rand.Reader)
-	q, alpha2, _ := GenerateSafePrimes(bits, rand.Reader)
+	// generate the prime factors
+	var p *big.Int
+	var q *big.Int
+	var err error
+	for {
+		p, err = rand.Prime(rand.Reader, bits)
+		if err != nil {
+			continue
+		}
+		q, err = rand.Prime(rand.Reader, bits)
+		if err != nil {
+			continue
+		}
 
-	for p.Cmp(q) == 0 {
-		p, alpha1, _ = GenerateSafePrimes(bits, rand.Reader)
-		q, alpha2, _ = GenerateSafePrimes(bits, rand.Reader)
+		break
 	}
 
-	p2 := new(big.Int).Mul(p, p)
-	q2 := new(big.Int).Mul(q, q)
-
-	g1 := new(big.Int).Exp(TWO, new(big.Int).Div(minusOne(p), alpha1), p)
-	g2 := new(big.Int).Exp(TWO, new(big.Int).Div(minusOne(q), alpha2), q)
-
-	z1 := new(big.Int).ModInverse(p2, q2)
-	z2 := new(big.Int).ModInverse(q2, p2)
-
-	g1 = new(big.Int).Mul(g1, z1)
-	g1.Mul(g1, p2)
-	g2 = new(big.Int).Mul(g2, z2)
-	g2.Mul(g2, q2)
-
 	n := new(big.Int).Mul(p, q)
-	n2 := new(big.Int).Mul(n, n)
+	lambda := computePhi(p, q)
 
-	g := new(big.Int).Add(g1, g2)
-	g.Mod(g, n2)
-
-	alpha := new(big.Int).Mul(alpha1, alpha2)
-	lambda := new(big.Int).Mul(minusOne(p), minusOne(q))
-	mu := new(big.Int).ModInverse(alpha, n)
 	return &SecretKey{
 		PublicKey: PublicKey{
 			N: n,
-			G: g,
 		},
-		Alpha:  alpha,
 		Lambda: lambda,
-		Mu:     mu,
 	}
 }

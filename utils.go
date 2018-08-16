@@ -3,7 +3,6 @@ package paillier
 import (
 	"crypto/rand"
 	"io"
-	"log"
 	"math/big"
 )
 
@@ -12,16 +11,6 @@ var ONE = big.NewInt(1)
 var TWO = big.NewInt(2)
 var FOUR = big.NewInt(4)
 
-// generates a new random number < max
-func CryptoRandom(max *big.Int) *big.Int {
-	rand, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return rand
-}
-
 //  returns n! = n*(n-1)*(n-2)...3*2*1
 func Factorial(n int) *big.Int {
 	ret := big.NewInt(1)
@@ -29,23 +18,6 @@ func Factorial(n int) *big.Int {
 		ret = new(big.Int).Mul(ret, big.NewInt(int64(i)))
 	}
 	return ret
-}
-
-//  Returns 2 primes such that p = 2 * q + 1 and that the length of
-//  p is nbits.  `p` is called a safe prime
-func GenerateSafePrimes(nbits int, random io.Reader) (p, q *big.Int, err error) {
-	for {
-		q, err = rand.Prime(random, nbits-1)
-		if err != nil {
-			return
-		}
-		p = (new(big.Int)).Mul(q, big.NewInt(2))
-		p = p.Add(p, big.NewInt(1))
-		if p.ProbablyPrime(50) { //a probability of 2**-100 of not being prime
-			return
-		}
-
-	}
 }
 
 // Generate a random element in the group of all the elements in Z/nZ that

@@ -59,7 +59,9 @@ func TestFactorial(t *testing.T) {
 	}
 }
 
-func AreSafePrimes(p, q *big.Int, expectedLength int, t *testing.T) {
+// IsSafePrime checks whether `p` is a safe prime. A safe prime is a prime
+// number of the form `2q + 1`, where `q` is also a prime.
+func IsSafePrime(p, q *big.Int, expectedLength int, t *testing.T) {
 	if l := p.BitLen(); l != expectedLength {
 		t.Error("p does not have the good length. ", l)
 	}
@@ -85,16 +87,6 @@ func GetEntireRQn(n int) map[int]bool {
 		}
 	}
 	return ret
-}
-
-func TestGenerateSafePrimes(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		p, q, err := GenerateSafePrimes(20, rand.Reader)
-		if err != nil {
-			t.Error(err)
-		}
-		AreSafePrimes(p, q, 20, t)
-	}
 }
 
 func TestGetRandomGeneratorOfTheQuadraticResidue(t *testing.T) {

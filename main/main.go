@@ -16,8 +16,6 @@ func n(i *big.Int) int {
 
 func main() {
 
-	// p := big.NewInt(101)
-	// q := big.NewInt(1021)
 	sk := paillier.CreateSecretKey(10)
 	pk := sk.PublicKey
 

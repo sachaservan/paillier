@@ -2,6 +2,7 @@ package paillier
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"reflect"
 	"testing"
@@ -11,81 +12,218 @@ var MockGenerateSafePrimes = func() (*big.Int, *big.Int, error) {
 	return big.NewInt(887), big.NewInt(443), nil
 }
 
-func TestGenerateSafePrimesOfThresholdKeyGenerator(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Random = rand.Reader
-	p, q, err := tkh.GenerateSafePrimes()
-	if err != nil {
-		t.Error(err)
-		return
+func TestCreateThresholdKeyGenerator(t *testing.T) {
+	var tests = map[string]struct {
+		publicKeyBitLength             int
+		totalNumberOfDecryptionServers int
+		threshold                      int
+		expectedError                  error
+	}{
+		"generator successfully created for 20 bit key length": {
+			publicKeyBitLength:             20,
+			totalNumberOfDecryptionServers: 6,
+			threshold:                      5,
+		},
+		"generator can't be created for 19 bit key length": {
+			publicKeyBitLength:             19,
+			totalNumberOfDecryptionServers: 4,
+			threshold:                      3,
+			expectedError:                  errors.New("Public key bit length must be an even number"),
+		},
+		"generator successfully created for 18 bit key length": {
+			publicKeyBitLength:             18,
+			totalNumberOfDecryptionServers: 4,
+			threshold:                      3,
+		},
+		"generator can't be created for 17 bit key length": {
+			publicKeyBitLength:             17,
+			totalNumberOfDecryptionServers: 4,
+			threshold:                      3,
+			expectedError:                  errors.New("Public key bit length must be an even number"),
+		},
+		"generator can't be created for 16 bit key length": {
+			publicKeyBitLength:             16,
+			totalNumberOfDecryptionServers: 4,
+			threshold:                      3,
+			expectedError:                  errors.New("Public key bit length must be at least 18 bits"),
+		},
 	}
-	AreSafePrimes(p, q, 10, t)
 
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			gen, err := GetThresholdKeyGenerator(
+				test.publicKeyBitLength,
+				test.totalNumberOfDecryptionServers,
+				test.threshold,
+				rand.Reader,
+			)
+
+			if !reflect.DeepEqual(test.expectedError, err) {
+				t.Fatalf(
+					"Unexpected error\nActual: %v\nExpected: %v",
+					err,
+					test.expectedError,
+				)
+			}
+
+			if test.expectedError == nil {
+				if gen == nil {
+					t.Fatal(
+						"Got nil generator, it should be successfully created",
+					)
+				}
+
+				if test.publicKeyBitLength != gen.PublicKeyBitLength {
+					t.Fatalf(
+						"Unexpected public key length\nExpected: %v\nActual: %v",
+						test.publicKeyBitLength,
+						gen.PublicKeyBitLength,
+					)
+				}
+
+				if test.threshold != gen.Threshold {
+					t.Fatalf(
+						"Unexpected threshold\nExpected: %v\nActual: %v",
+						test.threshold,
+						gen.Threshold,
+					)
+				}
+
+				if test.totalNumberOfDecryptionServers != gen.TotalNumberOfDecryptionServers {
+					t.Fatalf(
+						"Unexpected number of decryption servers\nExpected: %v\nActual: %v",
+						test.totalNumberOfDecryptionServers,
+						gen.TotalNumberOfDecryptionServers,
+					)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateNumbersOfCorrectBitLength(t *testing.T) {
+	var tests = map[string]struct {
+		publicKeyLength     int
+		expectedPrimeLength int
+	}{
+		"public key bit length = 32, prime bit length = 16": {
+			publicKeyLength:     32,
+			expectedPrimeLength: 16,
+		},
+		"public key bit length = 64, prime bit length = 32": {
+			publicKeyLength:     64,
+			expectedPrimeLength: 32,
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			gen, err := GetThresholdKeyGenerator(test.publicKeyLength, 10, 6, rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = gen.initNumerialValues()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if gen.p.BitLen() != test.expectedPrimeLength {
+				t.Fatalf(
+					"Unexpected prime bit length\nExpected %v\n Actual %v",
+					test.expectedPrimeLength,
+					gen.p.BitLen(),
+				)
+			}
+
+			if gen.q.BitLen() != test.expectedPrimeLength {
+				t.Fatalf(
+					"Unexpected prime bit length\nExpected %v\n Actual %v",
+					test.expectedPrimeLength,
+					gen.q.BitLen(),
+				)
+			}
+
+			if gen.n.BitLen() != test.publicKeyLength {
+				t.Fatalf(
+					"Unexpected modulus bit length\nExpected %v\n Actual %v",
+					test.publicKeyLength,
+					gen.n.BitLen(),
+				)
+			}
+
+			if new(big.Int).Mul(gen.p, gen.q).Cmp(gen.n) != 0 {
+				t.Fatal("n != pq")
+			}
+		})
+	}
 }
 
 func TestInitPandP1(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Random = rand.Reader
+	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	tkh.InitPandP1()
-	AreSafePrimes(tkh.p, tkh.p1, 10, t)
-
+	tkh.initPandP1()
+	IsSafePrime(tkh.p, tkh.p1, 16, t)
 }
 
 func TestInitQandQ1(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Random = rand.Reader
+	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	tkh.InitQandQ1()
-	AreSafePrimes(tkh.q, tkh.q1, 10, t)
+	tkh.initQandQ1()
+	IsSafePrime(tkh.q, tkh.q1, 16, t)
 }
 
 func TestInitPsAndQs(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Random = rand.Reader
+	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	tkh.InitPsAndQs()
-	AreSafePrimes(tkh.q, tkh.q1, 10, t)
-	AreSafePrimes(tkh.q, tkh.q1, 10, t)
+	tkh.initPsAndQs()
+
+	IsSafePrime(tkh.p, tkh.p1, 16, t)
+	IsSafePrime(tkh.q, tkh.q1, 16, t)
 }
 
 func TestArePsAndQsGood(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
-	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(6), b(5), b(4), b(3)
-	if !tkh.ArePsAndQsGood() {
+	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(887), b(443), b(839), b(419)
+	if !tkh.arePsAndQsGood() {
 		t.Fail()
 	}
 
-	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(6), b(5), b(6), b(3)
-	if tkh.ArePsAndQsGood() {
+	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(887), b(443), b(887), b(443)
+	if tkh.arePsAndQsGood() {
 		t.Fail()
 	}
 
-	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(6), b(5), b(5), b(3)
-	if tkh.ArePsAndQsGood() {
+	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(887), b(443), b(443), b(221)
+	if tkh.arePsAndQsGood() {
 		t.Fail()
 	}
 }
 
 func TestInitShortcuts(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
-	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(11), b(7), b(5), b(3)
-	tkh.InitShortcuts()
+	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(839), b(419), b(887), b(443)
+	tkh.initShortcuts()
 
-	if n(tkh.n) != 11*5 {
+	if !reflect.DeepEqual(tkh.n, b(744193)) {
 		t.Error("wrong n", tkh.n)
 	}
-	if n(tkh.m) != 7*3 {
+	if !reflect.DeepEqual(tkh.m, b(185617)) {
 		t.Error("wrong m", tkh.m)
 	}
-	if n(tkh.nm) != 11*5*7*3 {
+	if !reflect.DeepEqual(tkh.nm, new(big.Int).Mul(b(744193), b(185617))) {
 		t.Error("wrong nm", tkh.nm)
 	}
-	if n(tkh.nSquare) != 11*5*11*5 {
+	if !reflect.DeepEqual(tkh.nSquare, new(big.Int).Mul(b(744193), b(744193))) {
 		t.Error("wrong nSquare", tkh.nSquare)
 	}
 }
@@ -93,8 +231,8 @@ func TestInitShortcuts(t *testing.T) {
 func TestInitD(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
 	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(863), b(431), b(839), b(419)
-	tkh.InitShortcuts()
-	tkh.InitD()
+	tkh.initShortcuts()
+	tkh.initD()
 	if n(tkh.d)%n(tkh.m) != 0 {
 		t.Fail()
 	}
@@ -103,32 +241,32 @@ func TestInitD(t *testing.T) {
 	}
 }
 
-func TestInitNumericalValues(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Random = rand.Reader
+func TestInitNumerialValues(t *testing.T) {
+	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if err := tkh.InitNumericalValues(); err != nil {
+	if err := tkh.initNumerialValues(); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestGenerateHidingPolynomial(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Threshold = 10
-	tkh.Random = rand.Reader
-	if err := tkh.InitNumericalValues(); err != nil {
-		t.Error(err)
-		return
+	tkh, err := GetThresholdKeyGenerator(32, 15, 10, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := tkh.GenerateHidingPolynomial(); err != nil {
+
+	if err := tkh.initNumerialValues(); err != nil {
+		t.Error(err)
+	}
+	if err := tkh.generateHidingPolynomial(); err != nil {
 		t.Error(err)
 	}
 	p := tkh.polynomialCoefficients
 	if len(p) != tkh.Threshold {
 		t.Fail()
-		return
 	}
 	if n(p[0]) != n(tkh.d) {
 		t.Fail()
@@ -141,34 +279,33 @@ func TestGenerateHidingPolynomial(t *testing.T) {
 }
 
 func TestComputeShare(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Threshold = 3
-	tkh.TotalNumberOfDecryptionServers = 5
+	tkh, err := GetThresholdKeyGenerator(32, 5, 3, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tkh.nm = b(103)
 	tkh.polynomialCoefficients = []*big.Int{b(29), b(88), b(51)}
-	share := tkh.ComputeShare(2)
+	share := tkh.computeShare(2)
 	if n(share) != 31 {
 		t.Error("error computing a share.  ", share)
 	}
 }
 
 func TestCreateShares(t *testing.T) {
-	tkh := new(ThresholdKeyGenerator)
-	tkh.nbits = 10
-	tkh.Threshold = 10
-	tkh.TotalNumberOfDecryptionServers = 100
-	tkh.Random = rand.Reader
-	if err := tkh.InitNumericalValues(); err != nil {
-		t.Error(err)
-		return
-	}
-	if err := tkh.GenerateHidingPolynomial(); err != nil {
-		t.Error(err)
-		return
+	tkh, err := GetThresholdKeyGenerator(32, 100, 10, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if shares := tkh.CreateShares(); len(shares) != 100 {
+	if err := tkh.initNumerialValues(); err != nil {
+		t.Error(err)
+	}
+	if err := tkh.generateHidingPolynomial(); err != nil {
+		t.Error(err)
+	}
+
+	if shares := tkh.createShares(); len(shares) != 100 {
 		t.Fail()
 	}
 }
@@ -178,7 +315,7 @@ func TestCreateViArray(t *testing.T) {
 	tkh.TotalNumberOfDecryptionServers = 10
 	tkh.v = b(54)
 	tkh.nSquare = b(101 * 101)
-	vArr := tkh.CreateViArray([]*big.Int{b(12), b(90), b(103)})
+	vArr := tkh.createViArray([]*big.Int{b(12), b(90), b(103)})
 	exp := []*big.Int{b(6162), b(304), b(2728)}
 	if !reflect.DeepEqual(vArr, exp) {
 		t.Fail()
@@ -186,14 +323,22 @@ func TestCreateViArray(t *testing.T) {
 }
 
 func TestGetThresholdKeyGenerator(t *testing.T) {
-	tkh := GetThresholdKeyGenerator(50, 10, 6, rand.Reader)
-	if err := tkh.InitNumericalValues(); err != nil {
+	tkh, err := GetThresholdKeyGenerator(50, 10, 6, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tkh.initNumerialValues(); err != nil {
 		t.Error(nil)
 	}
 }
 
 func TestGenerate(t *testing.T) {
-	tkh := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	tkh, err := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tpks, err := tkh.Generate()
 	if err != nil {
 		t.Error(err)
@@ -209,7 +354,7 @@ func TestGenerate(t *testing.T) {
 		if len(tpk.Vi) != 10 {
 			t.Fail()
 		}
-		if tpk.G == nil || tpk.N == nil {
+		if tpk.N == nil {
 			t.Fail()
 		}
 		if tpk.Threshold != 6 || tpk.TotalNumberOfDecryptionServers != 10 {
@@ -219,13 +364,16 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestComputeV(t *testing.T) {
-	tkh := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	tkh, err := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tkh.n = b(1907 * 1823)
 	tkh.nSquare = new(big.Int).Mul(tkh.n, tkh.n)
 	for i := 0; i < 100; i++ {
-		if err := tkh.ComputeV(); err != nil {
+		if err := tkh.computeV(); err != nil {
 			t.Error(err)
-			return
 		}
 		if tkh.v.Cmp(tkh.nSquare) > 0 {
 			t.Error("v is too big")
@@ -237,5 +385,4 @@ func TestComputeV(t *testing.T) {
 	t.Error(`v has never been bigger than n.  It is suspicious in the sense<
 	than it was taken in the range 0...n**2 -1
 	`)
-
 }
