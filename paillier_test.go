@@ -28,15 +28,12 @@ func TestEncryptDecryptSmall(t *testing.T) {
 
 	for i := 1; i < 10; i++ {
 		privateKey := CreateSecretKey(10)
-
 		ciphertext := privateKey.Encrypt(big.NewInt(100))
-
 		returnedValue := privateKey.Decrypt(ciphertext)
 		if !reflect.DeepEqual(big.NewInt(100), returnedValue) {
 			t.Error("wrong decryption ", returnedValue, " is not ", big.NewInt(100))
 		}
 	}
-
 }
 
 func TestAdd(t *testing.T) {
@@ -51,4 +48,31 @@ func TestAdd(t *testing.T) {
 	if !reflect.DeepEqual(m, big.NewInt(25)) {
 		t.Error(m)
 	}
+}
+
+func BenchmarkDecrypt(b *testing.B) {
+	sk := CreateSecretKey(512)
+	pk := sk.PublicKey
+	c := pk.Encrypt(big.NewInt(12))
+
+	for i := 0; i < b.N; i++ {
+		Decrypt(c, sk)
+	}
+}
+
+func BenchmarkEncrypt(b *testing.B) {
+	sk := CreateSecretKey(512)
+	pk := sk.PublicKey
+
+	for i := 0; i < b.N; i++ {
+		Encrypt(big.NewInt(100), pk)
+	}
+}
+
+func Decrypt(c *Ciphertext, sk *SecretKey) *big.Int {
+	return sk.Decrypt(c)
+}
+
+func Encrypt(m *big.Int, pk PublicKey) *Ciphertext {
+	return pk.Encrypt(m)
 }

@@ -88,9 +88,15 @@ func (sk *SecretKey) String() string {
 // See [KL 08] construction 11.32, page 414.
 func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) (msg *big.Int) {
 
+	gmpLambda := gmp.NewInt(0).SetBytes(priv.Lambda.Bytes())
+	gmpC := gmp.NewInt(0).SetBytes(ciphertext.C.Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(priv.GetNSquare().Bytes())
+	gmpTmp := new(gmp.Int).Exp(gmpC, gmpLambda, gmpN2)
+
+	tmp := new(big.Int).SetBytes(gmpTmp.Bytes())
 	mu := new(big.Int).ModInverse(priv.Lambda, priv.N)
-	tmp := new(big.Int).Exp(ciphertext.C, priv.Lambda, priv.GetNSquare())
 	msg = new(big.Int).Mod(new(big.Int).Mul(L(tmp, priv.N), mu), priv.N)
+
 	return
 }
 
@@ -115,9 +121,15 @@ func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
 	// Threshold encryption is safe only for g=n+1 choice.
 	// See [DJN 10], section 5.1
 	g := new(big.Int).Add(pk.N, big.NewInt(1))
-	gm := new(big.Int).Exp(g, m, nSquare)
-	rn := new(big.Int).Exp(r, pk.N, nSquare)
-	return &Ciphertext{new(big.Int).Mod(new(big.Int).Mul(rn, gm), nSquare)}
+	gmpG := gmp.NewInt(0).SetBytes(g.Bytes())
+	gmpM := gmp.NewInt(0).SetBytes(m.Bytes())
+	gmpN := gmp.NewInt(0).SetBytes(pk.N.Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(nSquare.Bytes())
+	gmpR := gmp.NewInt(0).SetBytes(r.Bytes())
+	gm := new(gmp.Int).Exp(gmpG, gmpM, gmpN2)
+	rn := new(gmp.Int).Exp(gmpR, gmpN, gmpN2)
+	c := new(gmp.Int).Mod(new(gmp.Int).Mul(rn, gm), gmpN2)
+	return &Ciphertext{new(big.Int).SetBytes(c.Bytes())}
 }
 
 // Encrypt a plaintext. The plain text must be smaller that

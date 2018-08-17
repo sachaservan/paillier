@@ -119,16 +119,16 @@ func TestVerifyPart2(t *testing.T) {
 	}
 }
 
-func TestDecryptAndProduceZNP(t *testing.T) {
+func TestDecryptAndProduceZKP(t *testing.T) {
 	pd := getThresholdPrivateKey()
 	c := pd.Encrypt(big.NewInt(876))
 
-	znp, err := pd.DecryptAndProduceZNP(c.C, rand.Reader)
+	ZKP, err := pd.DecryptAndProduceZKP(c.C, rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if !znp.Verify() {
+	if !ZKP.Verify() {
 		t.Fail()
 	}
 }
@@ -289,11 +289,11 @@ func TestCombinePartialDecryptionsZKP(t *testing.T) {
 	message := b(100)
 	c := tpks[1].Encrypt(message)
 
-	share1, err := tpks[0].DecryptAndProduceZNP(c.C, rand.Reader)
+	share1, err := tpks[0].DecryptAndProduceZKP(c.C, rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
-	share2, err := tpks[1].DecryptAndProduceZNP(c.C, rand.Reader)
+	share2, err := tpks[1].DecryptAndProduceZKP(c.C, rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
@@ -354,11 +354,11 @@ func TestVerifyDecryption(t *testing.T) {
 	expt := b(101)
 	cipher := tpks[0].Encrypt(expt)
 
-	pd1, err := tpks[0].DecryptAndProduceZNP(cipher.C, rand.Reader)
+	pd1, err := tpks[0].DecryptAndProduceZKP(cipher.C, rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
-	pd2, err := tpks[1].DecryptAndProduceZNP(cipher.C, rand.Reader)
+	pd2, err := tpks[1].DecryptAndProduceZKP(cipher.C, rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
@@ -378,7 +378,7 @@ func TestVerifyDecryption(t *testing.T) {
 	}
 }
 
-func BenchmarkDecryptTime(b *testing.B) {
+func BenchmarkThresholdDecrypt(b *testing.B) {
 	tkh, err := GetThresholdKeyGenerator(512, 5, 5, rand.Reader)
 	if err != nil {
 		b.Error(err)

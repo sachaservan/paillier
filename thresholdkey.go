@@ -228,7 +228,7 @@ func (tpk *ThresholdPrivateKey) computeHash(a, b, c4, ci2 *big.Int) *big.Int {
 	return new(big.Int).SetBytes(hash.Sum([]byte{}))
 }
 
-func (tpk *ThresholdPrivateKey) DecryptAndProduceZNP(c *big.Int, random io.Reader) (*PartialDecryptionZKP, error) {
+func (tpk *ThresholdPrivateKey) DecryptAndProduceZKP(c *big.Int, random io.Reader) (*PartialDecryptionZKP, error) {
 	pd := new(PartialDecryptionZKP)
 	pd.Key = tpk.getThresholdKey()
 	pd.C = c
@@ -268,7 +268,7 @@ func (tpk *ThresholdPrivateKey) Validate(random io.Reader) error {
 	if err != nil {
 		return err
 	}
-	proof, err := tpk.DecryptAndProduceZNP(c.C, random)
+	proof, err := tpk.DecryptAndProduceZKP(c.C, random)
 	if err != nil {
 		return err
 	}
