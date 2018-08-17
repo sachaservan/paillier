@@ -27,7 +27,7 @@ func TestL(t *testing.T) {
 func TestEncryptDecryptSmall(t *testing.T) {
 
 	for i := 1; i < 10; i++ {
-		privateKey := CreateSecretKey(10)
+		privateKey, _ := CreateKeyPair(20)
 		ciphertext := privateKey.Encrypt(big.NewInt(100))
 		returnedValue := privateKey.Decrypt(ciphertext)
 		if !reflect.DeepEqual(big.NewInt(100), returnedValue) {
@@ -37,7 +37,7 @@ func TestEncryptDecryptSmall(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	privateKey := CreateSecretKey(10)
+	privateKey, _ := CreateKeyPair(10)
 	pk := privateKey.PublicKey
 
 	ciphertext1 := pk.Encrypt(big.NewInt(12))
@@ -51,8 +51,7 @@ func TestAdd(t *testing.T) {
 }
 
 func BenchmarkDecrypt(b *testing.B) {
-	sk := CreateSecretKey(512)
-	pk := sk.PublicKey
+	sk, pk := CreateKeyPair(512)
 	c := pk.Encrypt(big.NewInt(12))
 
 	for i := 0; i < b.N; i++ {
@@ -61,8 +60,7 @@ func BenchmarkDecrypt(b *testing.B) {
 }
 
 func BenchmarkEncrypt(b *testing.B) {
-	sk := CreateSecretKey(512)
-	pk := sk.PublicKey
+	_, pk := CreateKeyPair(512)
 
 	for i := 0; i < b.N; i++ {
 		Encrypt(big.NewInt(100), pk)
@@ -73,6 +71,6 @@ func Decrypt(c *Ciphertext, sk *SecretKey) *big.Int {
 	return sk.Decrypt(c)
 }
 
-func Encrypt(m *big.Int, pk PublicKey) *Ciphertext {
+func Encrypt(m *big.Int, pk *PublicKey) *Ciphertext {
 	return pk.Encrypt(m)
 }

@@ -16,8 +16,7 @@ func n(i *big.Int) int {
 
 func main() {
 
-	sk := paillier.CreateSecretKey(10)
-	pk := sk.PublicKey
+	sk, pk := paillier.CreateKeyPair(10)
 
 	plaintext1 := b(21)
 	plaintext2 := b(5)

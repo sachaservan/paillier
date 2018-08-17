@@ -78,26 +78,26 @@ func (sk *SecretKey) String() string {
 	return ret
 }
 
-// Decodes ciphertext into a plaintext message.
-//
-// c - cyphertext to decrypt
-// N, lambda - key attributes
+// Decrypt a ciphertext to plaintext message.
 //
 // D(c) = [ ((c^lambda) mod N^2) - 1) / N ] lambda^-1 mod N
 //
 // See [KL 08] construction 11.32, page 414.
-func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) (msg *big.Int) {
+func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
 
-	gmpLambda := gmp.NewInt(0).SetBytes(priv.Lambda.Bytes())
+	g := new(big.Int).Add(sk.N, big.NewInt(1))
+	gmpG := gmp.NewInt(0).SetBytes(g.Bytes())
+	gmpLambda := gmp.NewInt(0).SetBytes(sk.Lambda.Bytes())
 	gmpC := gmp.NewInt(0).SetBytes(ciphertext.C.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(priv.GetNSquare().Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(sk.GetNSquare().Bytes())
 	gmpTmp := new(gmp.Int).Exp(gmpC, gmpLambda, gmpN2)
 
 	tmp := new(big.Int).SetBytes(gmpTmp.Bytes())
-	mu := new(big.Int).ModInverse(priv.Lambda, priv.N)
-	msg = new(big.Int).Mod(new(big.Int).Mul(L(tmp, priv.N), mu), priv.N)
-
-	return
+	gmpGLambda := new(gmp.Int).Exp(gmpG, gmpLambda, gmpN2)
+	gl := new(big.Int).SetBytes(gmpGLambda.Bytes())
+	mu := new(big.Int).ModInverse(L(gl, sk.N), sk.N)
+	m := new(big.Int).Mod(new(big.Int).Mul(L(tmp, sk.N), mu), sk.N)
+	return m
 }
 
 // EncryptWithR encrypts a plaintext into a cypher one with random `r` specified
@@ -110,7 +110,7 @@ func (priv *SecretKey) Decrypt(ciphertext *Ciphertext) (msg *big.Int) {
 //
 // m - plaintext to encrypt
 // r - randomness used for encryption
-// E(m, r) = [(1 + N) r^N] mod N^2
+// E(m, r) = [(1 + N)^m r^N] mod N^2
 //
 // See [KL 08] construction 11.32, page 414.
 func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
@@ -177,12 +177,12 @@ func computePhi(p, q *big.Int) *big.Int {
 	return new(big.Int).Mul(minusOne(p), minusOne(q))
 }
 
-// CreatePrivateKey generates a Paillier private key accepting two large prime
+// CreateKeyPair generates a Paillier skate key accepting two large prime
 // numbers of equal length or other such that gcd(pq, (p-1)(q-1)) = 1.
 //
 // Algorithm is based on approach described in [KL 08], construction 11.32,
 // page 414 which is compatible with one described in [DJN 10], section 3.2
-// except that instead of generating Lambda private key component from LCM
+// except that instead of generating Lambda skate key component from LCM
 // of p and q we use Euler's totient function as suggested in [KL 08].
 //
 //     [KL 08]:  Jonathan Katz, Yehuda Lindell, (2008)
@@ -193,7 +193,7 @@ func computePhi(p, q *big.Int) *big.Int {
 //               A Generalization of Paillier’s Public-Key System
 //               with Applications to Electronic Voting
 //               Aarhus University, Dept. of Computer Science, BRICS
-func CreateSecretKey(bits int) *SecretKey {
+func CreateKeyPair(bits int) (*SecretKey, *PublicKey) {
 
 	// generate the prime factors
 	var p *big.Int
@@ -215,10 +215,12 @@ func CreateSecretKey(bits int) *SecretKey {
 	n := new(big.Int).Mul(p, q)
 	lambda := computePhi(p, q)
 
-	return &SecretKey{
-		PublicKey: PublicKey{
-			N: n,
-		},
-		Lambda: lambda,
+	pk := &PublicKey{
+		N: n,
 	}
+
+	return &SecretKey{
+		PublicKey: *pk,
+		Lambda:    lambda,
+	}, pk
 }
