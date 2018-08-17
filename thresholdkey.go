@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"io"
 	"math/big"
 
 	gmp "github.com/ncw/gmp"
@@ -228,7 +227,7 @@ func (tpk *ThresholdPrivateKey) computeHash(a, b, c4, ci2 *big.Int) *big.Int {
 	return new(big.Int).SetBytes(hash.Sum([]byte{}))
 }
 
-func (tpk *ThresholdPrivateKey) DecryptAndProduceZKP(c *big.Int, random io.Reader) (*PartialDecryptionZKP, error) {
+func (tpk *ThresholdPrivateKey) DecryptAndProduceZKP(c *big.Int) (*PartialDecryptionZKP, error) {
 	pd := new(PartialDecryptionZKP)
 	pd.Key = tpk.getThresholdKey()
 	pd.C = c
@@ -236,7 +235,7 @@ func (tpk *ThresholdPrivateKey) DecryptAndProduceZKP(c *big.Int, random io.Reade
 	pd.Decryption = tpk.Decrypt(c).Decryption
 
 	// choose random number
-	r, err := rand.Int(random, tpk.GetNSquare())
+	r, err := rand.Int(rand.Reader, tpk.GetNSquare())
 	if err != nil {
 		return nil, err
 	}
@@ -259,8 +258,8 @@ func (tpk *ThresholdPrivateKey) DecryptAndProduceZKP(c *big.Int, random io.Reade
 
 // Validate if the partial decryption key is well formed.  If well formed,
 // the method return nil else an explicative error is returned.
-func (tpk *ThresholdPrivateKey) Validate(random io.Reader) error {
-	m, err := rand.Int(random, tpk.N)
+func (tpk *ThresholdPrivateKey) Validate() error {
+	m, err := rand.Int(rand.Reader, tpk.N)
 	if err != nil {
 		return err
 	}
@@ -268,7 +267,7 @@ func (tpk *ThresholdPrivateKey) Validate(random io.Reader) error {
 	if err != nil {
 		return err
 	}
-	proof, err := tpk.DecryptAndProduceZKP(c.C, random)
+	proof, err := tpk.DecryptAndProduceZKP(c.C)
 	if err != nil {
 		return err
 	}
