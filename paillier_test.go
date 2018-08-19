@@ -26,10 +26,10 @@ func TestL(t *testing.T) {
 
 func TestEncryptDecryptSmall(t *testing.T) {
 
-	for i := 1; i < 10; i++ {
-		privateKey, _ := CreateKeyPair(20)
-		ciphertext := privateKey.Encrypt(big.NewInt(100))
-		returnedValue := privateKey.Decrypt(ciphertext)
+	for i := 1; i < 1000; i++ {
+		sk, _ := CreateKeyPair(10)
+		ciphertext := sk.Encrypt(big.NewInt(100))
+		returnedValue := sk.Decrypt(ciphertext)
 		if !reflect.DeepEqual(big.NewInt(100), returnedValue) {
 			t.Error("wrong decryption ", returnedValue, " is not ", big.NewInt(100))
 		}

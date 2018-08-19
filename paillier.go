@@ -52,10 +52,21 @@ func (pk *PublicKey) EAdd(cts ...*Ciphertext) *Ciphertext {
 	}
 }
 
-func (pk *PublicKey) ESub(ct1, ct2 *Ciphertext) *Ciphertext {
-	neg := new(big.Int).ModInverse(ct2.C, pk.GetNSquare())
-	m := new(big.Int).Mul(ct1.C, neg)
-	return &Ciphertext{new(big.Int).Mod(m, pk.GetNSquare())}
+func (pk *PublicKey) ESub(cts ...*Ciphertext) *Ciphertext {
+
+	accumulator := big.NewInt(1)
+
+	for _, c := range cts {
+		neg := new(big.Int).ModInverse(c.C, pk.GetNSquare())
+		accumulator = new(big.Int).Mod(
+			new(big.Int).Mul(accumulator, neg),
+			pk.GetNSquare(),
+		)
+	}
+
+	return &Ciphertext{
+		C: accumulator,
+	}
 }
 
 // ECMult returns a product of `ciphertext` and `constant` without decrypting `cypher`.
@@ -209,6 +220,9 @@ func CreateKeyPair(bits int) (*SecretKey, *PublicKey) {
 			continue
 		}
 
+		if p.Cmp(q) == 0 {
+			continue
+		}
 		break
 	}
 
