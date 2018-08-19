@@ -42,10 +42,11 @@ func TestAdd(t *testing.T) {
 
 	ciphertext1 := pk.Encrypt(big.NewInt(12))
 	ciphertext2 := pk.Encrypt(big.NewInt(13))
+	ciphertext3 := pk.Encrypt(big.NewInt(14))
 
-	ciphertext3 := pk.EAdd(ciphertext1, ciphertext2)
-	m := privateKey.Decrypt(ciphertext3)
-	if !reflect.DeepEqual(m, big.NewInt(25)) {
+	ciphertext4 := pk.EAdd(ciphertext1, ciphertext2, ciphertext3)
+	m := privateKey.Decrypt(ciphertext4)
+	if !reflect.DeepEqual(m, big.NewInt(39)) {
 		t.Error(m)
 	}
 }
