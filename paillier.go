@@ -96,17 +96,13 @@ func (sk *SecretKey) String() string {
 // See [KL 08] construction 11.32, page 414.
 func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
 
-	g := new(big.Int).Add(sk.N, big.NewInt(1))
-	gmpG := gmp.NewInt(0).SetBytes(g.Bytes())
 	gmpLambda := gmp.NewInt(0).SetBytes(sk.Lambda.Bytes())
 	gmpC := gmp.NewInt(0).SetBytes(ciphertext.C.Bytes())
 	gmpN2 := gmp.NewInt(0).SetBytes(sk.GetNSquare().Bytes())
 	gmpTmp := new(gmp.Int).Exp(gmpC, gmpLambda, gmpN2)
 
 	tmp := new(big.Int).SetBytes(gmpTmp.Bytes())
-	gmpGLambda := new(gmp.Int).Exp(gmpG, gmpLambda, gmpN2)
-	gl := new(big.Int).SetBytes(gmpGLambda.Bytes())
-	mu := new(big.Int).ModInverse(L(gl, sk.N), sk.N)
+	mu := new(big.Int).ModInverse(sk.Lambda, sk.N)
 	m := new(big.Int).Mod(new(big.Int).Mul(L(tmp, sk.N), mu), sk.N)
 	return m
 }
