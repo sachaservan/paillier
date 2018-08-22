@@ -54,9 +54,12 @@ func (pk *PublicKey) EAdd(cts ...*Ciphertext) *Ciphertext {
 
 func (pk *PublicKey) ESub(cts ...*Ciphertext) *Ciphertext {
 
-	accumulator := big.NewInt(1)
+	accumulator := cts[0].C
 
-	for _, c := range cts {
+	for i, c := range cts {
+		if i == 0 {
+			continue
+		}
 		neg := new(big.Int).ModInverse(c.C, pk.GetNSquare())
 		accumulator = new(big.Int).Mod(
 			new(big.Int).Mul(accumulator, neg),

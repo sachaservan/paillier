@@ -47,6 +47,36 @@ func TestAdd(t *testing.T) {
 	ciphertext4 := pk.EAdd(ciphertext1, ciphertext2, ciphertext3)
 	m := privateKey.Decrypt(ciphertext4)
 	if !reflect.DeepEqual(m, big.NewInt(39)) {
+		t.Error("wrong addition ", m, " is not ", big.NewInt(39))
+		t.Error(m)
+	}
+}
+
+func TestSub(t *testing.T) {
+	privateKey, _ := CreateKeyPair(10)
+	pk := privateKey.PublicKey
+
+	ciphertext1 := pk.Encrypt(big.NewInt(20))
+	ciphertext2 := pk.Encrypt(big.NewInt(10))
+	ciphertext3 := pk.Encrypt(big.NewInt(5))
+
+	ciphertext4 := pk.ESub(ciphertext1, ciphertext2, ciphertext3)
+	m := privateKey.Decrypt(ciphertext4)
+	if !reflect.DeepEqual(m, big.NewInt(5)) {
+		t.Error("wrong subtraction ", m, " is not ", big.NewInt(5))
+		t.Error(m)
+	}
+}
+
+func TestMult(t *testing.T) {
+	privateKey, _ := CreateKeyPair(10)
+	pk := privateKey.PublicKey
+
+	ciphertext1 := pk.Encrypt(big.NewInt(40))
+	ciphertext2 := pk.ECMult(ciphertext1, big.NewInt(2))
+	m := privateKey.Decrypt(ciphertext2)
+	if !reflect.DeepEqual(m, big.NewInt(80)) {
+		t.Error("wrong multiplication ", m, " is not ", big.NewInt(80))
 		t.Error(m)
 	}
 }
