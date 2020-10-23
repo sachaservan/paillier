@@ -55,6 +55,11 @@ func (pk *PublicKey) ConstMult(ct *Ciphertext, k *big.Int) *Ciphertext {
 	return &Ciphertext{new(big.Int).SetBytes(m.Bytes())}
 }
 
+// Randomize randomizes an encryption
+func (pk *PublicKey) Randomize(ct *Ciphertext) *Ciphertext {
+	return pk.Add(ct, pk.Encrypt(ZeroBigInt))
+}
+
 func (sk *SecretKey) String() string {
 	ret := fmt.Sprintf("g     :  %s\n", sk.G.String())
 	ret += fmt.Sprintf("n     :  %s\n", sk.N.String())
