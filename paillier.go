@@ -163,6 +163,11 @@ func (pk *PublicKey) Encrypt(m *gmp.Int) *Ciphertext {
 	return pk.EncryptWithR(m, r)
 }
 
+// NullCiphertext returns an encryption of zero with no randomness
+func (pk *PublicKey) NullCiphertext() *Ciphertext {
+	return &Ciphertext{C: gmp.NewInt(0)}
+}
+
 func l(u, n *gmp.Int) *gmp.Int {
 	t := new(gmp.Int).Sub(u, gmp.NewInt(1))
 	return new(gmp.Int).Div(t, n)
