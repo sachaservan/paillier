@@ -10,13 +10,8 @@ import (
 // PublicKey contains all the values necessary to encrypt and perform
 // homomorphic operations over ciphertexts
 type PublicKey struct {
-	N          *gmp.Int //N=p*q
-	G          *gmp.Int // usually G is set to N+1
-	K          int      // message space 2^K < N
-	S          int      // security parameter for statistical secure MPC
-	P          *gmp.Int // secret share prime
-	FPPrecBits int      // fixed point precision bits
-
+	N        *gmp.Int //N=p*q
+	G        *gmp.Int // usually G is set to N+1
 	n2       *gmp.Int // cache value of N^2
 	n2BigInt *big.Int // cache value of n^2 as big int type
 }

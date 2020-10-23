@@ -3,7 +3,6 @@ package paillier
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -215,8 +214,6 @@ func TestInitShortcuts(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
 	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(839), b(419), b(887), b(443)
 	tkh.initShortcuts()
-
-	fmt.Println(tkh.n)
 
 	if !reflect.DeepEqual(ToBigInt(tkh.n), ToBigInt(b(744193))) {
 		t.Error("wrong n", tkh.n)
