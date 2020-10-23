@@ -8,13 +8,8 @@ import (
 	"time"
 )
 
-// Generates a threshold Paillier key with an algorithm based on [DJN 10],
+// ThresholdKeyGenerator generates a threshold Paillier key with an algorithm based on [DJN 10],
 // section 5.1, "Key generation".
-//
-// Bear in mind that the algorithm assumes an existence of a trusted dealer
-// to generate and distribute the keys.
-//
-//
 //     [DJN 10]: Ivan Damgard, Mads Jurik, Jesper Buus Nielsen, (2010)
 //               A Generalization of Paillier’s Public-Key System
 //               with Applications to Electronic Voting
@@ -46,13 +41,23 @@ type ThresholdKeyGenerator struct {
 	polynomialCoefficients []*big.Int
 }
 
-// GetThresholdKeyGenerator is a preferable way to construct the
-// ThresholdKeyGenerator.
+// GenerateKeys returns as set of thrshold secret keys
+func (tkg *ThresholdKeyGenerator) GenerateKeys() ([]*ThresholdSecretKey, error) {
+	if err := tkg.initNumerialValues(); err != nil {
+		return nil, err
+	}
+	if err := tkg.generateHidingPolynomial(); err != nil {
+		return nil, err
+	}
+	return tkg.createPrivateKeys(), nil
+}
+
+// NewThresholdKeyGenerator is a preferable way to construct the ThresholdKeyGenerator.
 // Due to the various properties that must be met for the threshold key to be
 // considered valid, the minimum public key `N` bit length is 18 bits and the
 // public key bit length should be an even number.
 // The plaintext space for the key will be `Z_N`.
-func GetThresholdKeyGenerator(
+func NewThresholdKeyGenerator(
 	publicKeyBitLength int,
 	totalNumberOfDecryptionServers int,
 	threshold int,
@@ -230,7 +235,7 @@ func (tkg *ThresholdKeyGenerator) delta() *big.Int {
 // `l` is the number of decryption servers
 // `s_i` is a secret share for server `i`.
 // Secret shares were previously generated in the `CrateShares` function.
-func (tkg *ThresholdKeyGenerator) createViArray(shares []*big.Int) (viArray []*big.Int) {
+func (tkg *ThresholdKeyGenerator) createVerificationKeys(shares []*big.Int) (viArray []*big.Int) {
 	viArray = make([]*big.Int, len(shares))
 	delta := tkg.delta()
 	for i, share := range shares {
@@ -240,35 +245,25 @@ func (tkg *ThresholdKeyGenerator) createViArray(shares []*big.Int) (viArray []*b
 	return viArray
 }
 
-func (tkg *ThresholdKeyGenerator) createPrivateKey(i int, share *big.Int, viArray []*big.Int) *ThresholdPrivateKey {
-	ret := new(ThresholdPrivateKey)
+func (tkg *ThresholdKeyGenerator) createSecretKey(i int, share *big.Int, verificationKeys []*big.Int) *ThresholdSecretKey {
+	ret := new(ThresholdSecretKey)
 	ret.N = tkg.n
-	ret.V = tkg.v
+	ret.VerificationKey = tkg.v
 
 	ret.TotalNumberOfDecryptionServers = tkg.TotalNumberOfDecryptionServers
 	ret.Threshold = tkg.Threshold
 	ret.Share = share
-	ret.Id = i + 1
-	ret.Vi = viArray
+	ret.ID = i + 1
+	ret.VerificationKeys = verificationKeys
 	return ret
 }
 
-func (tkg *ThresholdKeyGenerator) createPrivateKeys() []*ThresholdPrivateKey {
+func (tkg *ThresholdKeyGenerator) createPrivateKeys() []*ThresholdSecretKey {
 	shares := tkg.createShares()
-	viArray := tkg.createViArray(shares)
-	ret := make([]*ThresholdPrivateKey, tkg.TotalNumberOfDecryptionServers)
+	verificationKeys := tkg.createVerificationKeys(shares)
+	ret := make([]*ThresholdSecretKey, tkg.TotalNumberOfDecryptionServers)
 	for i := 0; i < tkg.TotalNumberOfDecryptionServers; i++ {
-		ret[i] = tkg.createPrivateKey(i, shares[i], viArray)
+		ret[i] = tkg.createSecretKey(i, shares[i], verificationKeys)
 	}
 	return ret
-}
-
-func (tkg *ThresholdKeyGenerator) Generate() ([]*ThresholdPrivateKey, error) {
-	if err := tkg.initNumerialValues(); err != nil {
-		return nil, err
-	}
-	if err := tkg.generateHidingPolynomial(); err != nil {
-		return nil, err
-	}
-	return tkg.createPrivateKeys(), nil
 }

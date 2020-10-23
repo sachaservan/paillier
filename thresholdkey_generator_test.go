@@ -51,7 +51,7 @@ func TestCreateThresholdKeyGenerator(t *testing.T) {
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			gen, err := GetThresholdKeyGenerator(
+			gen, err := NewThresholdKeyGenerator(
 				test.publicKeyBitLength,
 				test.totalNumberOfDecryptionServers,
 				test.threshold,
@@ -118,7 +118,7 @@ func TestGenerateNumbersOfCorrectBitLength(t *testing.T) {
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			gen, err := GetThresholdKeyGenerator(test.publicKeyLength, 10, 6, rand.Reader)
+			gen, err := NewThresholdKeyGenerator(test.publicKeyLength, 10, 6, rand.Reader)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,7 +160,7 @@ func TestGenerateNumbersOfCorrectBitLength(t *testing.T) {
 }
 
 func TestInitPandP1(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 4, 3, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestInitPandP1(t *testing.T) {
 }
 
 func TestInitQandQ1(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 4, 3, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestInitQandQ1(t *testing.T) {
 }
 
 func TestInitPsAndQs(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 4, 3, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestInitD(t *testing.T) {
 }
 
 func TestInitNumerialValues(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 4, 3, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 4, 3, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestInitNumerialValues(t *testing.T) {
 }
 
 func TestGenerateHidingPolynomial(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 15, 10, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 15, 10, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestGenerateHidingPolynomial(t *testing.T) {
 }
 
 func TestComputeShare(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 5, 3, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 5, 3, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ func TestComputeShare(t *testing.T) {
 }
 
 func TestCreateShares(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 100, 10, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 100, 10, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,12 +310,12 @@ func TestCreateShares(t *testing.T) {
 	}
 }
 
-func TestCreateViArray(t *testing.T) {
+func TestCreateVerificationKeys(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
 	tkh.TotalNumberOfDecryptionServers = 10
 	tkh.v = b(54)
 	tkh.nSquare = b(101 * 101)
-	vArr := tkh.createViArray([]*big.Int{b(12), b(90), b(103)})
+	vArr := tkh.createVerificationKeys([]*big.Int{b(12), b(90), b(103)})
 	exp := []*big.Int{b(6162), b(304), b(2728)}
 	if !reflect.DeepEqual(vArr, exp) {
 		t.Fail()
@@ -323,7 +323,7 @@ func TestCreateViArray(t *testing.T) {
 }
 
 func TestGetThresholdKeyGenerator(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(50, 10, 6, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(50, 10, 6, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,12 +334,12 @@ func TestGetThresholdKeyGenerator(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 10, 6, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tpks, err := tkh.Generate()
+	tpks, err := tkh.GenerateKeys()
 	if err != nil {
 		t.Error(err)
 		return
@@ -348,10 +348,10 @@ func TestGenerate(t *testing.T) {
 		t.Fail()
 	}
 	for i, tpk := range tpks {
-		if tpk.Id != i+1 {
+		if tpk.ID != i+1 {
 			t.Fail()
 		}
-		if len(tpk.Vi) != 10 {
+		if len(tpk.VerificationKeys) != 10 {
 			t.Fail()
 		}
 		if tpk.N == nil {
@@ -364,7 +364,7 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestComputeV(t *testing.T) {
-	tkh, err := GetThresholdKeyGenerator(32, 10, 6, rand.Reader)
+	tkh, err := NewThresholdKeyGenerator(32, 10, 6, rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}

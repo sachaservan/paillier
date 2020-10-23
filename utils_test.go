@@ -22,19 +22,19 @@ func areRelativelyPrime(a, b int) bool {
 }
 
 func TestConstants(t *testing.T) {
-	if n(ZERO) != 0 {
+	if n(ZeroBigInt) != 0 {
 		t.Fail()
 	}
 
-	if n(ONE) != 1 {
+	if n(OneBigInt) != 1 {
 		t.Fail()
 	}
 
-	if n(TWO) != 2 {
+	if n(TwoBigInt) != 2 {
 		t.Fail()
 	}
 
-	if n(FOUR) != 4 {
+	if n(FourBigInt) != 4 {
 		t.Fail()
 	}
 }

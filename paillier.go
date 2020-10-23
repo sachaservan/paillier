@@ -2,16 +2,13 @@ package paillier
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 
 	gmp "github.com/ncw/gmp"
 )
 
-type Ciphertext struct {
-	C *big.Int
-}
-
+// PublicKey contains all the values necessary to encrypt and perform
+// homomorphic operations over ciphertexts
 type PublicKey struct {
 	N          *big.Int //N=p*q
 	G          *big.Int // usually G is set to N+1
@@ -22,91 +19,94 @@ type PublicKey struct {
 	FPPrecBits int      // fixed point precision bits
 }
 
+// SecretKey contains the necessary values needed to decrypt a ciphertext
 type SecretKey struct {
 	PublicKey
 	Lambda, Lm, Mu *big.Int
 }
 
-func (pk *PublicKey) GetNSquare() *big.Int {
+// Ciphertext contains the encryption of a value
+// TODO: add s
+type Ciphertext struct {
+	C *big.Int
+}
+
+// GetN2 returns N^2 where N is the Paillier modulus
+func (pk *PublicKey) GetN2() *big.Int {
 	if pk.N2 != nil {
 		return pk.N2
 	}
+
 	pk.N2 = new(big.Int).Mul(pk.N, pk.N)
 	return pk.N2
 }
 
-// EAdd takes an arbitrary number of ciphertexts and returns one that encodes
-// their sum.
-func (pk *PublicKey) EAdd(cts ...*Ciphertext) *Ciphertext {
-	accumulator := big.NewInt(1)
+// KeyGen generates a new keypair.
+// Algorithm is based on approach described in [KL 08], construction 11.32,
+// page 414 which is compatible with one described in [DJN 10], section 3.2
+// except that instead of generating Lambda skate key component from LCM
+// of p and q we use Euler's totient function as suggested in [KL 08].
+//
+//     [KL 08]:  Jonathan Katz, Yehuda Lindell, (2008)
+//               Introduction to Modern Cryptography: Principles and Protocols,
+//               Chapman & Hall/CRC
+//
+//     [DJN 10]: Ivan Damgard, Mads Jurik, Jesper Buus Nielsen, (2010)
+//               A Generalization of Paillier’s Public-Key System
+//               with Applications to Electronic Voting
+//               Aarhus University, Dept. of Computer Science, BRICS
+func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 
-	for _, c := range cts {
-		accumulator = new(big.Int).Mod(
-			new(big.Int).Mul(accumulator, c.C),
-			pk.GetNSquare(),
-		)
+	if secparam%2 != 0 {
+		panic("KeyGen: secparam must be divisible by 2")
 	}
 
-	return &Ciphertext{
-		C: accumulator,
-	}
-}
-
-func (pk *PublicKey) ESub(cts ...*Ciphertext) *Ciphertext {
-
-	accumulator := cts[0].C
-
-	for i, c := range cts {
-		if i == 0 {
+	// generate the prime factors
+	var p *big.Int
+	var q *big.Int
+	var err error
+	for {
+		p, err = rand.Prime(rand.Reader, secparam/2)
+		if err != nil {
 			continue
 		}
-		neg := new(big.Int).ModInverse(c.C, pk.GetNSquare())
-		accumulator = new(big.Int).Mod(
-			new(big.Int).Mul(accumulator, neg),
-			pk.GetNSquare(),
-		)
+		q, err = rand.Prime(rand.Reader, secparam/2)
+		if err != nil {
+			continue
+		}
+
+		if p.Cmp(q) == 0 {
+			continue
+		}
+		break
 	}
 
-	return &Ciphertext{
-		C: accumulator,
+	n := new(big.Int).Mul(p, q)
+	lambda := computePhi(p, q)
+
+	pk := &PublicKey{
+		N: n,
 	}
-}
 
-// ECMult returns a product of `ciphertext` and `constant` without decrypting `cypher`.
-// D( E(m)^k mod N^2 ) = km mod N
-func (pk *PublicKey) ECMult(ct *Ciphertext, k *big.Int) *Ciphertext {
-
-	gmpC := gmp.NewInt(0).SetBytes(ct.C.Bytes())
-	gmpK := gmp.NewInt(0).SetBytes(k.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetNSquare().Bytes())
-
-	m := new(gmp.Int).Exp(gmpC, gmpK, gmpN2)
-	return &Ciphertext{new(big.Int).SetBytes(m.Bytes())}
-}
-
-func (sk *SecretKey) String() string {
-	ret := fmt.Sprintf("g     :  %s\n", sk.G.String())
-	ret += fmt.Sprintf("n     :  %s\n", sk.N.String())
-	ret += fmt.Sprintf("lambda:  %s\n", sk.Lambda.String())
-	ret += fmt.Sprintf("mu    :  %s\n", sk.Mu.String())
-	return ret
+	return &SecretKey{
+		PublicKey: *pk,
+		Lambda:    lambda,
+	}, pk
 }
 
 // Decrypt a ciphertext to plaintext message.
-//
 // D(c) = [ ((c^lambda) mod N^2) - 1) / N ] lambda^-1 mod N
-//
 // See [KL 08] construction 11.32, page 414.
 func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
 
 	gmpLambda := gmp.NewInt(0).SetBytes(sk.Lambda.Bytes())
 	gmpC := gmp.NewInt(0).SetBytes(ciphertext.C.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(sk.GetNSquare().Bytes())
+	gmpN2 := gmp.NewInt(0).SetBytes(sk.GetN2().Bytes())
 	gmpTmp := new(gmp.Int).Exp(gmpC, gmpLambda, gmpN2)
 
 	tmp := new(big.Int).SetBytes(gmpTmp.Bytes())
 	mu := new(big.Int).ModInverse(sk.Lambda, sk.N)
-	m := new(big.Int).Mod(new(big.Int).Mul(L(tmp, sk.N), mu), sk.N)
+	m := new(big.Int).Mod(new(big.Int).Mul(l(tmp, sk.N), mu), sk.N)
 	return m
 }
 
@@ -125,7 +125,7 @@ func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
 // See [KL 08] construction 11.32, page 414.
 func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
 
-	nSquare := pk.GetNSquare()
+	nSquare := pk.GetN2()
 
 	// g is _always_ equal n+1
 	// Threshold encryption is safe only for g=n+1 choice.
@@ -164,76 +164,26 @@ func (pk *PublicKey) Encrypt(m *big.Int) *Ciphertext {
 	return pk.EncryptWithR(m, r)
 }
 
-func L(u, n *big.Int) *big.Int {
+func l(u, n *big.Int) *big.Int {
 	t := new(big.Int).Sub(u, big.NewInt(1))
 	return new(big.Int).Div(t, n)
 }
 
-func LCM(x, y *big.Int) *big.Int {
+func lcm(x, y *big.Int) *big.Int {
 	return new(big.Int).Mul(new(big.Int).Div(x, new(big.Int).GCD(nil, nil, x, y)), y)
-}
-
-func minusOne(x *big.Int) *big.Int {
-	return new(big.Int).Add(x, big.NewInt(-1))
 }
 
 func computeMu(g, lambda, n *big.Int) *big.Int {
 	n2 := new(big.Int).Mul(n, n)
 	u := new(big.Int).Exp(g, lambda, n2)
-	return new(big.Int).ModInverse(L(u, n), n)
+	return new(big.Int).ModInverse(l(u, n), n)
 }
 
 func computePhi(p, q *big.Int) *big.Int {
 	return new(big.Int).Mul(minusOne(p), minusOne(q))
 }
 
-// CreateKeyPair generates a Paillier skate key accepting two large prime
-// numbers of equal length or other such that gcd(pq, (p-1)(q-1)) = 1.
-//
-// Algorithm is based on approach described in [KL 08], construction 11.32,
-// page 414 which is compatible with one described in [DJN 10], section 3.2
-// except that instead of generating Lambda skate key component from LCM
-// of p and q we use Euler's totient function as suggested in [KL 08].
-//
-//     [KL 08]:  Jonathan Katz, Yehuda Lindell, (2008)
-//               Introduction to Modern Cryptography: Principles and Protocols,
-//               Chapman & Hall/CRC
-//
-//     [DJN 10]: Ivan Damgard, Mads Jurik, Jesper Buus Nielsen, (2010)
-//               A Generalization of Paillier’s Public-Key System
-//               with Applications to Electronic Voting
-//               Aarhus University, Dept. of Computer Science, BRICS
-func CreateKeyPair(bits int) (*SecretKey, *PublicKey) {
-
-	// generate the prime factors
-	var p *big.Int
-	var q *big.Int
-	var err error
-	for {
-		p, err = rand.Prime(rand.Reader, bits)
-		if err != nil {
-			continue
-		}
-		q, err = rand.Prime(rand.Reader, bits)
-		if err != nil {
-			continue
-		}
-
-		if p.Cmp(q) == 0 {
-			continue
-		}
-		break
-	}
-
-	n := new(big.Int).Mul(p, q)
-	lambda := computePhi(p, q)
-
-	pk := &PublicKey{
-		N: n,
-	}
-
-	return &SecretKey{
-		PublicKey: *pk,
-		Lambda:    lambda,
-	}, pk
+// subtracts 1 from a big int
+func minusOne(x *big.Int) *big.Int {
+	return new(big.Int).Add(x, big.NewInt(-1))
 }

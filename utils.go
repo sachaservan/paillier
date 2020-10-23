@@ -6,12 +6,12 @@ import (
 	"math/big"
 )
 
-var ZERO = big.NewInt(0)
-var ONE = big.NewInt(1)
-var TWO = big.NewInt(2)
-var FOUR = big.NewInt(4)
+var ZeroBigInt = big.NewInt(0)
+var OneBigInt = big.NewInt(1)
+var TwoBigInt = big.NewInt(2)
+var FourBigInt = big.NewInt(4)
 
-//  returns n! = n*(n-1)*(n-2)...3*2*1
+// Factorial returns n! = n*(n-1)*(n-2)...3*2*1
 func Factorial(n int) *big.Int {
 	ret := big.NewInt(1)
 	for i := 1; i <= n; i++ {
@@ -20,8 +20,7 @@ func Factorial(n int) *big.Int {
 	return ret
 }
 
-// Generate a random element in the group of all the elements in Z/nZ that
-// has a multiplicative inverse.
+// GetRandomNumberInMultiplicativeGroup returns a random element in the group of all the elements in Z/nZ that
 func GetRandomNumberInMultiplicativeGroup(n *big.Int, random io.Reader) (*big.Int, error) {
 	r, err := rand.Int(random, n)
 	if err != nil {
@@ -36,9 +35,8 @@ func GetRandomNumberInMultiplicativeGroup(n *big.Int, random io.Reader) (*big.In
 
 }
 
-//  Return a random generator of RQn with high probability.  THIS METHOD
-//  ONLY WORKS IF N IS THE PRODUCT OF TWO SAFE PRIMES! This heuristic is used
-//  threshold signature paper in the Victor Shoup
+// GetRandomGeneratorOfTheQuadraticResidue return a random generator of RQn with high probability.
+// Note: Only works if the group factorization consists of safe primes.
 func GetRandomGeneratorOfTheQuadraticResidue(n *big.Int, rand io.Reader) (*big.Int, error) {
 	r, err := GetRandomNumberInMultiplicativeGroup(n, rand)
 	if err != nil {

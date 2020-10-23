@@ -10,7 +10,7 @@ func TestLCM(t *testing.T) {
 	a := big.NewInt(2 * 3 * 3 * 3 * 5 * 5)
 	b := big.NewInt(3 * 3 * 5 * 5 * 57 * 11)
 	exp := big.NewInt(3 * 3 * 5 * 5)
-	if reflect.DeepEqual(exp, LCM(a, b)) {
+	if reflect.DeepEqual(exp, lcm(a, b)) {
 		t.Fail()
 	}
 }
@@ -19,7 +19,7 @@ func TestL(t *testing.T) {
 	u := big.NewInt(21)
 	n := big.NewInt(3)
 	exp := big.NewInt(6)
-	if !reflect.DeepEqual(exp, L(u, n)) {
+	if !reflect.DeepEqual(exp, l(u, n)) {
 		t.Error("L function is not good")
 	}
 }
@@ -27,7 +27,7 @@ func TestL(t *testing.T) {
 func TestEncryptDecryptSmall(t *testing.T) {
 
 	for i := 1; i < 1000; i++ {
-		sk, _ := CreateKeyPair(10)
+		sk, _ := KeyGen(10)
 		ciphertext := sk.Encrypt(big.NewInt(100))
 		returnedValue := sk.Decrypt(ciphertext)
 		if !reflect.DeepEqual(big.NewInt(100), returnedValue) {
@@ -37,14 +37,14 @@ func TestEncryptDecryptSmall(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	privateKey, _ := CreateKeyPair(10)
+	privateKey, _ := KeyGen(10)
 	pk := privateKey.PublicKey
 
 	ciphertext1 := pk.Encrypt(big.NewInt(12))
 	ciphertext2 := pk.Encrypt(big.NewInt(13))
 	ciphertext3 := pk.Encrypt(big.NewInt(14))
 
-	ciphertext4 := pk.EAdd(ciphertext1, ciphertext2, ciphertext3)
+	ciphertext4 := pk.Add(ciphertext1, ciphertext2, ciphertext3)
 	m := privateKey.Decrypt(ciphertext4)
 	if !reflect.DeepEqual(m, big.NewInt(39)) {
 		t.Error("wrong addition ", m, " is not ", big.NewInt(39))
@@ -53,14 +53,14 @@ func TestAdd(t *testing.T) {
 }
 
 func TestSub(t *testing.T) {
-	privateKey, _ := CreateKeyPair(10)
+	privateKey, _ := KeyGen(10)
 	pk := privateKey.PublicKey
 
 	ciphertext1 := pk.Encrypt(big.NewInt(20))
 	ciphertext2 := pk.Encrypt(big.NewInt(10))
 	ciphertext3 := pk.Encrypt(big.NewInt(5))
 
-	ciphertext4 := pk.ESub(ciphertext1, ciphertext2, ciphertext3)
+	ciphertext4 := pk.Sub(ciphertext1, ciphertext2, ciphertext3)
 	m := privateKey.Decrypt(ciphertext4)
 	if !reflect.DeepEqual(m, big.NewInt(5)) {
 		t.Error("wrong subtraction ", m, " is not ", big.NewInt(5))
@@ -69,11 +69,11 @@ func TestSub(t *testing.T) {
 }
 
 func TestMult(t *testing.T) {
-	privateKey, _ := CreateKeyPair(10)
+	privateKey, _ := KeyGen(10)
 	pk := privateKey.PublicKey
 
 	ciphertext1 := pk.Encrypt(big.NewInt(40))
-	ciphertext2 := pk.ECMult(ciphertext1, big.NewInt(2))
+	ciphertext2 := pk.ConstMult(ciphertext1, big.NewInt(2))
 	m := privateKey.Decrypt(ciphertext2)
 	if !reflect.DeepEqual(m, big.NewInt(80)) {
 		t.Error("wrong multiplication ", m, " is not ", big.NewInt(80))
@@ -82,7 +82,7 @@ func TestMult(t *testing.T) {
 }
 
 func BenchmarkDecrypt(b *testing.B) {
-	sk, pk := CreateKeyPair(512)
+	sk, pk := KeyGen(512)
 	c := pk.Encrypt(big.NewInt(12))
 
 	for i := 0; i < b.N; i++ {
@@ -91,7 +91,7 @@ func BenchmarkDecrypt(b *testing.B) {
 }
 
 func BenchmarkEncrypt(b *testing.B) {
-	_, pk := CreateKeyPair(512)
+	_, pk := KeyGen(512)
 
 	for i := 0; i < b.N; i++ {
 		Encrypt(big.NewInt(100), pk)
