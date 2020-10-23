@@ -2,6 +2,7 @@ package paillier
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
 
 	gmp "github.com/ncw/gmp"
@@ -176,6 +177,21 @@ func (pk *PublicKey) EncryptZero() *Ciphertext {
 // EncryptOne returns a fresh encryption of 1
 func (pk *PublicKey) EncryptOne() *Ciphertext {
 	return pk.Encrypt(gmp.NewInt(0))
+}
+
+// NewCiphertextFromBytes initializes a ciphertext from a byte encoding.
+// Requires the public key to ensure field elements are correct (see PBC library)
+func (pk *PublicKey) NewCiphertextFromBytes(data []byte) (*Ciphertext, error) {
+	if len(data) == 0 {
+		return nil, errors.New("no data provided")
+	}
+
+	return &Ciphertext{C: new(gmp.Int).SetBytes(data)}, nil
+}
+
+// Bytes returns the byte encoding of the ciphertext struct
+func (ct *Ciphertext) Bytes() ([]byte, error) {
+	return ct.C.Bytes(), nil
 }
 
 func l(u, n *gmp.Int) *gmp.Int {
