@@ -176,7 +176,7 @@ func (pk *PublicKey) EncryptZero() *Ciphertext {
 
 // EncryptOne returns a fresh encryption of 1
 func (pk *PublicKey) EncryptOne() *Ciphertext {
-	return pk.Encrypt(gmp.NewInt(0))
+	return pk.Encrypt(gmp.NewInt(1))
 }
 
 // NewCiphertextFromBytes initializes a ciphertext from a byte encoding.
