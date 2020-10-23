@@ -168,6 +168,16 @@ func (pk *PublicKey) NullCiphertext() *Ciphertext {
 	return &Ciphertext{C: gmp.NewInt(0)}
 }
 
+// EncryptZero returns a fresh encryption of 0
+func (pk *PublicKey) EncryptZero() *Ciphertext {
+	return pk.Encrypt(gmp.NewInt(0))
+}
+
+// EncryptOne returns a fresh encryption of 1
+func (pk *PublicKey) EncryptOne() *Ciphertext {
+	return pk.Encrypt(gmp.NewInt(0))
+}
+
 func l(u, n *gmp.Int) *gmp.Int {
 	t := new(gmp.Int).Sub(u, gmp.NewInt(1))
 	return new(gmp.Int).Div(t, n)
