@@ -3,13 +3,15 @@ package paillier
 import (
 	"crypto/rand"
 	"errors"
-	"math/big"
+	"fmt"
 	"reflect"
 	"testing"
+
+	gmp "github.com/ncw/gmp"
 )
 
-var MockGenerateSafePrimes = func() (*big.Int, *big.Int, error) {
-	return big.NewInt(887), big.NewInt(443), nil
+var MockGenerateSafePrimes = func() (*gmp.Int, *gmp.Int, error) {
+	return gmp.NewInt(887), gmp.NewInt(443), nil
 }
 
 func TestCreateThresholdKeyGenerator(t *testing.T) {
@@ -152,7 +154,7 @@ func TestGenerateNumbersOfCorrectBitLength(t *testing.T) {
 				)
 			}
 
-			if new(big.Int).Mul(gen.p, gen.q).Cmp(gen.n) != 0 {
+			if new(gmp.Int).Mul(gen.p, gen.q).Cmp(gen.n) != 0 {
 				t.Fatal("n != pq")
 			}
 		})
@@ -166,7 +168,7 @@ func TestInitPandP1(t *testing.T) {
 	}
 
 	tkh.initPandP1()
-	IsSafePrime(tkh.p, tkh.p1, 16, t)
+	IsSafePrime(ToBigInt(tkh.p), ToBigInt(tkh.p1), 16, t)
 }
 
 func TestInitQandQ1(t *testing.T) {
@@ -176,7 +178,7 @@ func TestInitQandQ1(t *testing.T) {
 	}
 
 	tkh.initQandQ1()
-	IsSafePrime(tkh.q, tkh.q1, 16, t)
+	IsSafePrime(ToBigInt(tkh.q), ToBigInt(tkh.q1), 16, t)
 }
 
 func TestInitPsAndQs(t *testing.T) {
@@ -187,8 +189,8 @@ func TestInitPsAndQs(t *testing.T) {
 
 	tkh.initPsAndQs()
 
-	IsSafePrime(tkh.p, tkh.p1, 16, t)
-	IsSafePrime(tkh.q, tkh.q1, 16, t)
+	IsSafePrime(ToBigInt(tkh.p), ToBigInt(tkh.p1), 16, t)
+	IsSafePrime(ToBigInt(tkh.q), ToBigInt(tkh.q1), 16, t)
 }
 
 func TestArePsAndQsGood(t *testing.T) {
@@ -214,16 +216,18 @@ func TestInitShortcuts(t *testing.T) {
 	tkh.p, tkh.p1, tkh.q, tkh.q1 = b(839), b(419), b(887), b(443)
 	tkh.initShortcuts()
 
-	if !reflect.DeepEqual(tkh.n, b(744193)) {
+	fmt.Println(tkh.n)
+
+	if !reflect.DeepEqual(ToBigInt(tkh.n), ToBigInt(b(744193))) {
 		t.Error("wrong n", tkh.n)
 	}
-	if !reflect.DeepEqual(tkh.m, b(185617)) {
+	if !reflect.DeepEqual(ToBigInt(tkh.m), ToBigInt(b(185617))) {
 		t.Error("wrong m", tkh.m)
 	}
-	if !reflect.DeepEqual(tkh.nm, new(big.Int).Mul(b(744193), b(185617))) {
+	if !reflect.DeepEqual(ToBigInt(tkh.nm), ToBigInt(new(gmp.Int).Mul(b(744193), b(185617)))) {
 		t.Error("wrong nm", tkh.nm)
 	}
-	if !reflect.DeepEqual(tkh.nSquare, new(big.Int).Mul(b(744193), b(744193))) {
+	if !reflect.DeepEqual(ToBigInt(tkh.nSquare), ToBigInt(new(gmp.Int).Mul(b(744193), b(744193)))) {
 		t.Error("wrong nSquare", tkh.nSquare)
 	}
 }
@@ -285,7 +289,7 @@ func TestComputeShare(t *testing.T) {
 	}
 
 	tkh.nm = b(103)
-	tkh.polynomialCoefficients = []*big.Int{b(29), b(88), b(51)}
+	tkh.polynomialCoefficients = []*gmp.Int{b(29), b(88), b(51)}
 	share := tkh.computeShare(2)
 	if n(share) != 31 {
 		t.Error("error computing a share.  ", share)
@@ -315,8 +319,8 @@ func TestCreateVerificationKeys(t *testing.T) {
 	tkh.TotalNumberOfDecryptionServers = 10
 	tkh.v = b(54)
 	tkh.nSquare = b(101 * 101)
-	vArr := tkh.createVerificationKeys([]*big.Int{b(12), b(90), b(103)})
-	exp := []*big.Int{b(6162), b(304), b(2728)}
+	vArr := tkh.createVerificationKeys([]*gmp.Int{b(12), b(90), b(103)})
+	exp := []*gmp.Int{b(6162), b(304), b(2728)}
 	if !reflect.DeepEqual(vArr, exp) {
 		t.Fail()
 	}
@@ -370,7 +374,7 @@ func TestComputeV(t *testing.T) {
 	}
 
 	tkh.n = b(1907 * 1823)
-	tkh.nSquare = new(big.Int).Mul(tkh.n, tkh.n)
+	tkh.nSquare = new(gmp.Int).Mul(tkh.n, tkh.n)
 	for i := 0; i < 100; i++ {
 		if err := tkh.computeV(); err != nil {
 			t.Error(err)

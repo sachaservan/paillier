@@ -4,13 +4,15 @@ import (
 	"crypto/rand"
 	"math/big"
 	"testing"
+
+	gmp "github.com/ncw/gmp"
 )
 
-func b(i int) *big.Int {
-	return big.NewInt(int64(i))
+func b(i int) *gmp.Int {
+	return gmp.NewInt(int64(i))
 }
 
-func n(i *big.Int) int {
+func n(i *gmp.Int) int {
 	return int(i.Int64())
 }
 
@@ -91,7 +93,7 @@ func GetEntireRQn(n int) map[int]bool {
 
 func TestGetRandomGeneratorOfTheQuadraticResidue(t *testing.T) {
 	tooSmallPrime1, tooSmallPrime2 := b(347), b(359)
-	m := new(big.Int).Mul(tooSmallPrime1, tooSmallPrime2)
+	m := new(gmp.Int).Mul(tooSmallPrime1, tooSmallPrime2)
 	RQn := GetEntireRQn(n(m))
 	for i := 0; i < 100; i++ {
 		elm, err := GetRandomGeneratorOfTheQuadraticResidue(m, rand.Reader)

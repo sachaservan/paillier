@@ -6,11 +6,11 @@ import (
 	"paillier"
 )
 
-func b(i int) *big.Int {
-	return big.NewInt(int64(i))
+func b(i int) *gmp.Int {
+	return gmp.NewInt(int64(i))
 }
 
-func n(i *big.Int) int {
+func n(i *gmp.Int) int {
 	return int(i.Int64())
 }
 

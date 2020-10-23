@@ -2,18 +2,17 @@ package paillier
 
 import (
 	"fmt"
-	"math/big"
 
 	gmp "github.com/ncw/gmp"
 )
 
 // Add homomorphically adds encrypted values
 func (pk *PublicKey) Add(cts ...*Ciphertext) *Ciphertext {
-	accumulator := big.NewInt(1)
+	accumulator := gmp.NewInt(1)
 
 	for _, c := range cts {
-		accumulator = new(big.Int).Mod(
-			new(big.Int).Mul(accumulator, c.C),
+		accumulator = new(gmp.Int).Mod(
+			new(gmp.Int).Mul(accumulator, c.C),
 			pk.GetN2(),
 		)
 	}
@@ -32,9 +31,9 @@ func (pk *PublicKey) Sub(cts ...*Ciphertext) *Ciphertext {
 		if i == 0 {
 			continue
 		}
-		neg := new(big.Int).ModInverse(c.C, pk.GetN2())
-		accumulator = new(big.Int).Mod(
-			new(big.Int).Mul(accumulator, neg),
+		neg := new(gmp.Int).ModInverse(c.C, pk.GetN2())
+		accumulator = new(gmp.Int).Mod(
+			new(gmp.Int).Mul(accumulator, neg),
 			pk.GetN2(),
 		)
 	}
@@ -45,14 +44,10 @@ func (pk *PublicKey) Sub(cts ...*Ciphertext) *Ciphertext {
 }
 
 // ConstMult multiplies an encrypted value by constant
-func (pk *PublicKey) ConstMult(ct *Ciphertext, k *big.Int) *Ciphertext {
+func (pk *PublicKey) ConstMult(ct *Ciphertext, k *gmp.Int) *Ciphertext {
 
-	gmpC := gmp.NewInt(0).SetBytes(ct.C.Bytes())
-	gmpK := gmp.NewInt(0).SetBytes(k.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(pk.GetN2().Bytes())
-
-	m := new(gmp.Int).Exp(gmpC, gmpK, gmpN2)
-	return &Ciphertext{new(big.Int).SetBytes(m.Bytes())}
+	m := new(gmp.Int).Exp(ct.C, k, pk.GetN2())
+	return &Ciphertext{new(gmp.Int).SetBytes(m.Bytes())}
 }
 
 // Randomize randomizes an encryption

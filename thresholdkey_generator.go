@@ -6,6 +6,8 @@ import (
 	"io"
 	"math/big"
 	"time"
+
+	gmp "github.com/ncw/gmp"
 )
 
 // ThresholdKeyGenerator generates a threshold Paillier key with an algorithm based on [DJN 10],
@@ -20,25 +22,25 @@ type ThresholdKeyGenerator struct {
 	Threshold                      int
 	random                         io.Reader
 
-	p *big.Int // p is prime of `PublicKeyBitLength/2` bits and `p = 2*p1 + 1`
-	q *big.Int // q is prime of `PublicKeyBitLength/2` bits and `q = 2*q1 + 1`
+	p *gmp.Int // p is prime of `PublicKeyBitLength/2` bits and `p = 2*p1 + 1`
+	q *gmp.Int // q is prime of `PublicKeyBitLength/2` bits and `q = 2*q1 + 1`
 
-	p1 *big.Int // p1 is prime of `PublicKeyBitLength/2 - 1` bits
-	q1 *big.Int // q1 is prime of `PublicKeyBitLength/2 - 1` bits
+	p1 *gmp.Int // p1 is prime of `PublicKeyBitLength/2 - 1` bits
+	q1 *gmp.Int // q1 is prime of `PublicKeyBitLength/2 - 1` bits
 
-	n       *big.Int // n=p*q and is of `PublicKeyBitLength` bits
-	m       *big.Int // m = p1*q1
-	nSquare *big.Int // nSquare = n*n
-	nm      *big.Int // nm = n*m
+	n       *gmp.Int // n=p*q and is of `PublicKeyBitLength` bits
+	m       *gmp.Int // m = p1*q1
+	nSquare *gmp.Int // nSquare = n*n
+	nm      *gmp.Int // nm = n*m
 
 	// As specified in the paper, d must satify d=1 mod n and d=0 mod m
-	d *big.Int
+	d *gmp.Int
 
 	// A generator of QR in Z_{n^2}
-	v *big.Int
+	v *gmp.Int
 
 	// The polynomial coefficients to hide a secret. See Shamir.
-	polynomialCoefficients []*big.Int
+	polynomialCoefficients []*gmp.Int
 }
 
 // GenerateKeys returns as set of thrshold secret keys
@@ -83,12 +85,17 @@ func NewThresholdKeyGenerator(
 	}, nil
 }
 
-func (tkg *ThresholdKeyGenerator) generateSafePrimes() (*big.Int, *big.Int, error) {
+func (tkg *ThresholdKeyGenerator) generateSafePrimes() (*gmp.Int, *gmp.Int, error) {
 	concurrencyLevel := 4
 	timeout := 120 * time.Second
 	safePrimeBitLength := tkg.PublicKeyBitLength / 2
 
-	return GenerateSafePrime(safePrimeBitLength, concurrencyLevel, timeout, tkg.random)
+	p, q, err := GenerateSafePrime(safePrimeBitLength, concurrencyLevel, timeout, tkg.random)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ToGmpInt(p), ToGmpInt(q), nil
 }
 
 func (tkg *ThresholdKeyGenerator) initPandP1() error {
@@ -104,10 +111,10 @@ func (tkg *ThresholdKeyGenerator) initQandQ1() error {
 }
 
 func (tkg *ThresholdKeyGenerator) initShortcuts() {
-	tkg.n = new(big.Int).Mul(tkg.p, tkg.q)
-	tkg.m = new(big.Int).Mul(tkg.p1, tkg.q1)
-	tkg.nSquare = new(big.Int).Mul(tkg.n, tkg.n)
-	tkg.nm = new(big.Int).Mul(tkg.n, tkg.m)
+	tkg.n = new(gmp.Int).Mul(tkg.p, tkg.q)
+	tkg.m = new(gmp.Int).Mul(tkg.p1, tkg.q1)
+	tkg.nSquare = new(gmp.Int).Mul(tkg.n, tkg.n)
+	tkg.nm = new(gmp.Int).Mul(tkg.n, tkg.m)
 }
 
 func (tkg *ThresholdKeyGenerator) arePsAndQsGood() bool {
@@ -168,8 +175,8 @@ func (tkg *ThresholdKeyGenerator) computeV() error {
 //
 // x = a2*y2*z2 = 1 * m * [m^-1 mod n]
 func (tkg *ThresholdKeyGenerator) initD() {
-	mInverse := new(big.Int).ModInverse(tkg.m, tkg.n)
-	tkg.d = new(big.Int).Mul(mInverse, tkg.m)
+	mInverse := new(gmp.Int).ModInverse(tkg.m, tkg.n)
+	tkg.d = new(gmp.Int).Mul(mInverse, tkg.m)
 }
 
 func (tkg *ThresholdKeyGenerator) initNumerialValues() error {
@@ -188,41 +195,42 @@ func (tkg *ThresholdKeyGenerator) initNumerialValues() error {
 // `a_i` - random value from {0, ... nm - 1} for 0<i<w
 // `a_0` is always equal `d`
 func (tkg *ThresholdKeyGenerator) generateHidingPolynomial() error {
-	tkg.polynomialCoefficients = make([]*big.Int, tkg.Threshold)
+	tkg.polynomialCoefficients = make([]*gmp.Int, tkg.Threshold)
 	tkg.polynomialCoefficients[0] = tkg.d
-	var err error
 	for i := 1; i < tkg.Threshold; i++ {
-		tkg.polynomialCoefficients[i], err = rand.Int(tkg.random, tkg.nm)
+		randInt, err := rand.Int(tkg.random, new(big.Int).SetBytes(tkg.nm.Bytes()))
 		if err != nil {
 			return err
 		}
+		tkg.polynomialCoefficients[i] = new(gmp.Int).SetBytes(randInt.Bytes())
+
 	}
 	return nil
 }
 
 // The secred share of the i'th authority is `f(i) mod nm`, where `f` is
 // the polynomial we generated in `GenerateHidingPolynomial` function.
-func (tkg *ThresholdKeyGenerator) computeShare(index int) *big.Int {
-	share := big.NewInt(0)
+func (tkg *ThresholdKeyGenerator) computeShare(index int) *gmp.Int {
+	share := gmp.NewInt(0)
 	for i := 0; i < tkg.Threshold; i++ {
 		a := tkg.polynomialCoefficients[i]
 		// we index authorities from 1, that's why we do index+1 here
-		b := new(big.Int).Exp(big.NewInt(int64(index+1)), big.NewInt(int64(i)), nil)
-		tmp := new(big.Int).Mul(a, b)
-		share = new(big.Int).Add(share, tmp)
+		b := new(gmp.Int).Exp(gmp.NewInt(int64(index+1)), gmp.NewInt(int64(i)), nil)
+		tmp := new(gmp.Int).Mul(a, b)
+		share = new(gmp.Int).Add(share, tmp)
 	}
-	return new(big.Int).Mod(share, tkg.nm)
+	return new(gmp.Int).Mod(share, tkg.nm)
 }
 
-func (tkg *ThresholdKeyGenerator) createShares() []*big.Int {
-	shares := make([]*big.Int, tkg.TotalNumberOfDecryptionServers)
+func (tkg *ThresholdKeyGenerator) createShares() []*gmp.Int {
+	shares := make([]*gmp.Int, tkg.TotalNumberOfDecryptionServers)
 	for i := 0; i < tkg.TotalNumberOfDecryptionServers; i++ {
 		shares[i] = tkg.computeShare(i)
 	}
 	return shares
 }
 
-func (tkg *ThresholdKeyGenerator) delta() *big.Int {
+func (tkg *ThresholdKeyGenerator) delta() *gmp.Int {
 	return Factorial(tkg.TotalNumberOfDecryptionServers)
 }
 
@@ -235,17 +243,17 @@ func (tkg *ThresholdKeyGenerator) delta() *big.Int {
 // `l` is the number of decryption servers
 // `s_i` is a secret share for server `i`.
 // Secret shares were previously generated in the `CrateShares` function.
-func (tkg *ThresholdKeyGenerator) createVerificationKeys(shares []*big.Int) (viArray []*big.Int) {
-	viArray = make([]*big.Int, len(shares))
+func (tkg *ThresholdKeyGenerator) createVerificationKeys(shares []*gmp.Int) (viArray []*gmp.Int) {
+	viArray = make([]*gmp.Int, len(shares))
 	delta := tkg.delta()
 	for i, share := range shares {
-		tmp := new(big.Int).Mul(share, delta)
-		viArray[i] = new(big.Int).Exp(tkg.v, tmp, tkg.nSquare)
+		tmp := new(gmp.Int).Mul(share, delta)
+		viArray[i] = new(gmp.Int).Exp(tkg.v, tmp, tkg.nSquare)
 	}
 	return viArray
 }
 
-func (tkg *ThresholdKeyGenerator) createSecretKey(i int, share *big.Int, verificationKeys []*big.Int) *ThresholdSecretKey {
+func (tkg *ThresholdKeyGenerator) createSecretKey(i int, share *gmp.Int, verificationKeys []*gmp.Int) *ThresholdSecretKey {
 	ret := new(ThresholdSecretKey)
 	ret.N = tkg.n
 	ret.VerificationKey = tkg.v

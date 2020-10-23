@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"math/big"
 
 	gmp "github.com/ncw/gmp"
 )
@@ -28,8 +27,8 @@ type ThresholdPublicKey struct {
 	PublicKey
 	TotalNumberOfDecryptionServers int
 	Threshold                      int
-	VerificationKey                *big.Int // needed for ZKP
-	VerificationKeys               []*big.Int
+	VerificationKey                *gmp.Int // needed for ZKP
+	VerificationKeys               []*gmp.Int
 }
 
 // ThresholdSecretKey is the key for a threshold Paillier scheme.
@@ -39,13 +38,13 @@ type ThresholdPublicKey struct {
 type ThresholdSecretKey struct {
 	ThresholdPublicKey
 	ID    int
-	Share *big.Int
+	Share *gmp.Int
 }
 
 // PartialDecryption contains a partially decrypted ciphertext
 type PartialDecryption struct {
 	ID         int
-	Decryption *big.Int
+	Decryption *gmp.Int
 }
 
 // PartialDecryptionZKP is a non-interactive ZKP based on the Fiat–Shamir heuristic
@@ -53,22 +52,22 @@ type PartialDecryption struct {
 type PartialDecryptionZKP struct {
 	PartialDecryption
 	Key *ThresholdPublicKey // the public key used to encrypt
-	E   *big.Int            // the challenge
-	Z   *big.Int            // the value needed to check to verify the decryption
-	C   *big.Int            // the input cypher text
+	E   *gmp.Int            // the challenge
+	Z   *gmp.Int            // the value needed to check to verify the decryption
+	C   *gmp.Int            // the input cypher text
 }
 
 // Returns the value of [(4*delta^2)]^-1  mod n.
 // It is a constant value for the given `ThresholdKey` and is used in the last
 // step of share combining.
-func (tk *ThresholdPublicKey) combineSharesConstant() *big.Int {
-	tmp := new(big.Int).Mul(FourBigInt, new(big.Int).Mul(tk.delta(), tk.delta()))
-	return (&big.Int{}).ModInverse(tmp, tk.N)
+func (tk *ThresholdPublicKey) combineSharesConstant() *gmp.Int {
+	tmp := new(gmp.Int).Mul(FourBigInt, new(gmp.Int).Mul(tk.delta(), tk.delta()))
+	return (&gmp.Int{}).ModInverse(tmp, tk.N)
 }
 
 // Returns the factorial of the number of `TotalNumberOfDecryptionServers`.
 // It is a contant value for the given `ThresholdKey`.
-func (tk *ThresholdPublicKey) delta() *big.Int {
+func (tk *ThresholdPublicKey) delta() *gmp.Int {
 	return Factorial(tk.TotalNumberOfDecryptionServers)
 }
 
@@ -89,15 +88,15 @@ func (tk *ThresholdPublicKey) verifyPartialDecryptions(shares []*PartialDecrypti
 	return nil
 }
 
-func (tk *ThresholdPublicKey) updateLambda(share1, share2 *PartialDecryption, lambda *big.Int) *big.Int {
-	num := new(big.Int).Mul(lambda, big.NewInt(int64(-share2.ID)))
-	denom := big.NewInt(int64(share1.ID - share2.ID))
-	return new(big.Int).Div(num, denom)
+func (tk *ThresholdPublicKey) updateLambda(share1, share2 *PartialDecryption, lambda *gmp.Int) *gmp.Int {
+	num := new(gmp.Int).Mul(lambda, gmp.NewInt(int64(-share2.ID)))
+	denom := gmp.NewInt(int64(share1.ID - share2.ID))
+	return new(gmp.Int).Div(num, denom)
 }
 
 // Evaluates lambda parameter for each decrypted share. See second figure in the
 // "Share combining" paragraph in [DJK 10], section 5.2.
-func (tk *ThresholdPublicKey) computeLambda(share *PartialDecryption, shares []*PartialDecryption) *big.Int {
+func (tk *ThresholdPublicKey) computeLambda(share *PartialDecryption, shares []*PartialDecryption) *gmp.Int {
 	lambda := tk.delta()
 	for _, share2 := range shares {
 		if share2.ID != share.ID {
@@ -117,11 +116,11 @@ func (tk *ThresholdPublicKey) computeLambda(share *PartialDecryption, shares []*
 // following property of modulo:
 // (AB) mod C = (A mod C * B mod C) mod C
 // Note, we need to combine coefficients into single c'.
-func (tk *ThresholdPublicKey) updateCprime(cprime, lambda *big.Int, share *PartialDecryption) *big.Int {
-	twoLambda := new(big.Int).Mul(TwoBigInt, lambda)
+func (tk *ThresholdPublicKey) updateCprime(cprime, lambda *gmp.Int, share *PartialDecryption) *gmp.Int {
+	twoLambda := new(gmp.Int).Mul(TwoBigInt, lambda)
 	ret := tk.exp(share.Decryption, twoLambda, tk.GetN2())
-	ret = new(big.Int).Mul(cprime, ret)
-	return new(big.Int).Mod(ret, tk.GetN2())
+	ret = new(gmp.Int).Mul(cprime, ret)
+	return new(gmp.Int).Mod(ret, tk.GetN2())
 }
 
 // We use `exp` from `updateCprime` to raise decryption share to the power of lambda
@@ -130,24 +129,24 @@ func (tk *ThresholdPublicKey) updateCprime(cprime, lambda *big.Int, share *Parti
 //
 // For instance, for b = -18:
 // b^{−18} = (b^−1)^18, where b^{−1} is the multiplicative inverse modulo c.
-func (tk *ThresholdPublicKey) exp(a, b, c *big.Int) *big.Int {
+func (tk *ThresholdPublicKey) exp(a, b, c *gmp.Int) *gmp.Int {
 	if b.Cmp(ZeroBigInt) == -1 { // b < 0 ?
-		ret := new(big.Int).Exp(a, new(big.Int).Neg(b), c)
-		return new(big.Int).ModInverse(ret, c)
+		ret := new(gmp.Int).Exp(a, new(gmp.Int).Neg(b), c)
+		return new(gmp.Int).ModInverse(ret, c)
 	}
-	return new(big.Int).Exp(a, b, c)
+	return new(gmp.Int).Exp(a, b, c)
 }
 
 // Executes the last step of message decryption. Takes `cprime` value computed
 // from valid shares provided by decryption servers and multiplies this value
 // by `combineSharesContant` which is specific to the given public `ThresholdKey`.
-func (tk *ThresholdPublicKey) computeDecryption(cprime *big.Int) *big.Int {
+func (tk *ThresholdPublicKey) computeDecryption(cprime *gmp.Int) *gmp.Int {
 	l := l(cprime, tk.N)
-	return new(big.Int).Mod(new(big.Int).Mul(tk.combineSharesConstant(), l), tk.N)
+	return new(gmp.Int).Mod(new(gmp.Int).Mul(tk.combineSharesConstant(), l), tk.N)
 }
 
 // CombinePartialDecryptions merges several partial decryptions to produce a plaintext
-func (tk *ThresholdPublicKey) CombinePartialDecryptions(shares []*PartialDecryption) (*big.Int, error) {
+func (tk *ThresholdPublicKey) CombinePartialDecryptions(shares []*PartialDecryption) (*gmp.Int, error) {
 	if err := tk.verifyPartialDecryptions(shares); err != nil {
 		return nil, err
 	}
@@ -162,7 +161,7 @@ func (tk *ThresholdPublicKey) CombinePartialDecryptions(shares []*PartialDecrypt
 }
 
 // CombinePartialDecryptionsZKP merges several ZKP for partial decryptions
-func (tk *ThresholdPublicKey) CombinePartialDecryptionsZKP(shares []*PartialDecryptionZKP) (*big.Int, error) {
+func (tk *ThresholdPublicKey) CombinePartialDecryptionsZKP(shares []*PartialDecryptionZKP) (*gmp.Int, error) {
 	ret := make([]*PartialDecryption, 0)
 	for _, share := range shares {
 		if share.VerifyProof() {
@@ -173,7 +172,7 @@ func (tk *ThresholdPublicKey) CombinePartialDecryptionsZKP(shares []*PartialDecr
 }
 
 // VerifyDecryption checks if the partial decryption was performed correctly; returns error if not
-func (tk *ThresholdPublicKey) VerifyDecryption(encryptedMessage, decryptedMessage *big.Int, shares []*PartialDecryptionZKP) error {
+func (tk *ThresholdPublicKey) VerifyDecryption(encryptedMessage, decryptedMessage *gmp.Int, shares []*PartialDecryptionZKP) error {
 	for _, share := range shares {
 		if share.C.Cmp(encryptedMessage) != 0 {
 			return errors.New("The encrypted message is not the same than the one in the shares")
@@ -190,21 +189,21 @@ func (tk *ThresholdPublicKey) VerifyDecryption(encryptedMessage, decryptedMessag
 }
 
 // PartialDecrypt returns the partial decryption of the ciphertext
-func (tsk *ThresholdSecretKey) PartialDecrypt(c *big.Int) *PartialDecryption {
+func (tsk *ThresholdSecretKey) PartialDecrypt(c *gmp.Int) *PartialDecryption {
 	ret := new(PartialDecryption)
 	ret.ID = tsk.ID
-	exp := new(big.Int).Mul(tsk.Share, new(big.Int).Mul(TwoBigInt, tsk.delta()))
+	exp := new(gmp.Int).Mul(tsk.Share, new(gmp.Int).Mul(TwoBigInt, tsk.delta()))
 	gmpExp := gmp.NewInt(0).SetBytes(exp.Bytes())
 	gmpC := gmp.NewInt(0).SetBytes(c.Bytes())
 	gmpN2 := gmp.NewInt(0).SetBytes(tsk.GetN2().Bytes())
-	ret.Decryption = big.NewInt(0).SetBytes(new(gmp.Int).Exp(gmpC, gmpExp, gmpN2).Bytes())
+	ret.Decryption = gmp.NewInt(0).SetBytes(new(gmp.Int).Exp(gmpC, gmpExp, gmpN2).Bytes())
 	return ret
 }
 
-func (tsk *ThresholdSecretKey) copyVerificationKeys() []*big.Int {
-	ret := make([]*big.Int, len(tsk.VerificationKeys))
+func (tsk *ThresholdSecretKey) copyVerificationKeys() []*gmp.Int {
+	ret := make([]*gmp.Int, len(tsk.VerificationKeys))
 	for i, vi := range tsk.VerificationKeys {
-		ret[i] = new(big.Int).Add(vi, big.NewInt(0))
+		ret[i] = new(gmp.Int).Add(vi, gmp.NewInt(0))
 	}
 	return ret
 }
@@ -217,13 +216,13 @@ func (tsk *ThresholdSecretKey) PublicKey() *ThresholdPublicKey {
 	ret.TotalNumberOfDecryptionServers = tsk.TotalNumberOfDecryptionServers
 	ret.VerificationKey = tsk.VerificationKey
 	ret.VerificationKeys = tsk.copyVerificationKeys()
-	ret.N = new(big.Int).Add(tsk.N, big.NewInt(0))
+	ret.N = new(gmp.Int).Add(tsk.N, gmp.NewInt(0))
 	return ret
 }
 
 // PartialDecryptionWithZKP produces a partial decryption of the ciphertext
 // along with a zero-knowledge proof that it was performed correctly.
-func (tsk *ThresholdSecretKey) PartialDecryptionWithZKP(c *big.Int) (*PartialDecryptionZKP, error) {
+func (tsk *ThresholdSecretKey) PartialDecryptionWithZKP(c *gmp.Int) (*PartialDecryptionZKP, error) {
 	pd := new(PartialDecryptionZKP)
 	pd.Key = tsk.PublicKey()
 	pd.C = c
@@ -231,19 +230,22 @@ func (tsk *ThresholdSecretKey) PartialDecryptionWithZKP(c *big.Int) (*PartialDec
 	pd.Decryption = tsk.PartialDecrypt(c).Decryption
 
 	// choose random number
-	r, err := rand.Int(rand.Reader, tsk.GetN2())
+	rBig, err := rand.Int(rand.Reader, tsk.GetN2AsBigInt())
 	if err != nil {
 		return nil, err
 	}
+
+	r := new(gmp.Int).SetBytes(rBig.Bytes())
+
 	//  compute a
-	c4 := new(big.Int).Exp(c, FourBigInt, nil)
-	a := new(big.Int).Exp(c4, r, tsk.GetN2())
+	c4 := new(gmp.Int).Exp(c, FourBigInt, nil)
+	a := new(gmp.Int).Exp(c4, r, tsk.GetN2())
 
 	// compute b
-	b := new(big.Int).Exp(tsk.VerificationKey, r, tsk.GetN2())
+	b := new(gmp.Int).Exp(tsk.VerificationKey, r, tsk.GetN2())
 
 	// compute hash
-	ci2 := new(big.Int).Exp(pd.Decryption, big.NewInt(2), nil)
+	ci2 := new(gmp.Int).Exp(pd.Decryption, gmp.NewInt(2), nil)
 
 	pd.E = tsk.computeHash(a, b, c4, ci2)
 
@@ -254,11 +256,11 @@ func (tsk *ThresholdSecretKey) PartialDecryptionWithZKP(c *big.Int) (*PartialDec
 
 // VerifyPartialDecryption checks if the partial decryption is valid
 func (tsk *ThresholdSecretKey) VerifyPartialDecryption() error {
-	m, err := rand.Int(rand.Reader, tsk.N)
+	m, err := rand.Int(rand.Reader, ToBigInt(tsk.N))
 	if err != nil {
 		return err
 	}
-	c := tsk.Encrypt(m)
+	c := tsk.Encrypt(ToGmpInt(m))
 	if err != nil {
 		return err
 	}
@@ -279,46 +281,46 @@ func (pd *PartialDecryptionZKP) VerifyProof() bool {
 	hash := sha256.New()
 	hash.Write(a.Bytes())
 	hash.Write(b.Bytes())
-	c4 := new(big.Int).Exp(pd.C, FourBigInt, nil)
+	c4 := new(gmp.Int).Exp(pd.C, FourBigInt, nil)
 	hash.Write(c4.Bytes())
-	ci2 := new(big.Int).Exp(pd.Decryption, TwoBigInt, nil)
+	ci2 := new(gmp.Int).Exp(pd.Decryption, TwoBigInt, nil)
 	hash.Write(ci2.Bytes())
 
-	expectedE := new(big.Int).SetBytes(hash.Sum([]byte{}))
+	expectedE := new(gmp.Int).SetBytes(hash.Sum([]byte{}))
 	return pd.E.Cmp(expectedE) == 0
 }
 
-func (pd *PartialDecryptionZKP) verifyPart1() *big.Int {
-	c4 := new(big.Int).Exp(pd.C, FourBigInt, nil)                  // c^4
-	decryption2 := new(big.Int).Exp(pd.Decryption, TwoBigInt, nil) // c_i^2
+func (pd *PartialDecryptionZKP) verifyPart1() *gmp.Int {
+	c4 := new(gmp.Int).Exp(pd.C, FourBigInt, nil)                  // c^4
+	decryption2 := new(gmp.Int).Exp(pd.Decryption, TwoBigInt, nil) // c_i^2
 
-	a1 := new(big.Int).Exp(c4, pd.Z, pd.Key.GetN2())          // (c^4)^Z
-	a2 := new(big.Int).Exp(decryption2, pd.E, pd.Key.GetN2()) // (c_i^2)^E
-	a2 = new(big.Int).ModInverse(a2, pd.Key.GetN2())
-	a := new(big.Int).Mod(new(big.Int).Mul(a1, a2), pd.Key.GetN2())
+	a1 := new(gmp.Int).Exp(c4, pd.Z, pd.Key.GetN2())          // (c^4)^Z
+	a2 := new(gmp.Int).Exp(decryption2, pd.E, pd.Key.GetN2()) // (c_i^2)^E
+	a2 = new(gmp.Int).ModInverse(a2, pd.Key.GetN2())
+	a := new(gmp.Int).Mod(new(gmp.Int).Mul(a1, a2), pd.Key.GetN2())
 	return a
 }
 
-func (pd *PartialDecryptionZKP) verifyPart2() *big.Int {
+func (pd *PartialDecryptionZKP) verifyPart2() *gmp.Int {
 	vi := pd.Key.VerificationKeys[pd.ID-1]                               // servers are indexed from 1
-	b1 := new(big.Int).Exp(pd.Key.VerificationKey, pd.Z, pd.Key.GetN2()) // V^Z
-	b2 := new(big.Int).Exp(vi, pd.E, pd.Key.GetN2())                     // (v_i)^E
-	b2 = new(big.Int).ModInverse(b2, pd.Key.GetN2())
-	b := new(big.Int).Mod(new(big.Int).Mul(b1, b2), pd.Key.GetN2())
+	b1 := new(gmp.Int).Exp(pd.Key.VerificationKey, pd.Z, pd.Key.GetN2()) // V^Z
+	b2 := new(gmp.Int).Exp(vi, pd.E, pd.Key.GetN2())                     // (v_i)^E
+	b2 = new(gmp.Int).ModInverse(b2, pd.Key.GetN2())
+	b := new(gmp.Int).Mod(new(gmp.Int).Mul(b1, b2), pd.Key.GetN2())
 	return b
 }
 
-func (tsk *ThresholdSecretKey) computeZ(r, e *big.Int) *big.Int {
-	tmp := new(big.Int).Mul(e, tsk.delta())
-	tmp = new(big.Int).Mul(tmp, tsk.Share)
-	return new(big.Int).Add(r, tmp)
+func (tsk *ThresholdSecretKey) computeZ(r, e *gmp.Int) *gmp.Int {
+	tmp := new(gmp.Int).Mul(e, tsk.delta())
+	tmp = new(gmp.Int).Mul(tmp, tsk.Share)
+	return new(gmp.Int).Add(r, tmp)
 }
 
-func (tsk *ThresholdSecretKey) computeHash(a, b, c4, ci2 *big.Int) *big.Int {
+func (tsk *ThresholdSecretKey) computeHash(a, b, c4, ci2 *gmp.Int) *gmp.Int {
 	hash := sha256.New()
 	hash.Write(a.Bytes())
 	hash.Write(b.Bytes())
 	hash.Write(c4.Bytes())
 	hash.Write(ci2.Bytes())
-	return new(big.Int).SetBytes(hash.Sum([]byte{}))
+	return new(gmp.Int).SetBytes(hash.Sum([]byte{}))
 }

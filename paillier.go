@@ -10,35 +10,48 @@ import (
 // PublicKey contains all the values necessary to encrypt and perform
 // homomorphic operations over ciphertexts
 type PublicKey struct {
-	N          *big.Int //N=p*q
-	G          *big.Int // usually G is set to N+1
-	N2         *big.Int // the cache value of N^2
+	N          *gmp.Int //N=p*q
+	G          *gmp.Int // usually G is set to N+1
 	K          int      // message space 2^K < N
 	S          int      // security parameter for statistical secure MPC
-	P          *big.Int // secret share prime
+	P          *gmp.Int // secret share prime
 	FPPrecBits int      // fixed point precision bits
+
+	n2       *gmp.Int // cache value of N^2
+	n2BigInt *big.Int // cache value of n^2 as big int type
 }
 
 // SecretKey contains the necessary values needed to decrypt a ciphertext
 type SecretKey struct {
 	PublicKey
-	Lambda, Lm, Mu *big.Int
+	Lambda, Lm, Mu *gmp.Int
 }
 
 // Ciphertext contains the encryption of a value
 // TODO: add s
 type Ciphertext struct {
-	C *big.Int
+	C *gmp.Int
 }
 
 // GetN2 returns N^2 where N is the Paillier modulus
-func (pk *PublicKey) GetN2() *big.Int {
-	if pk.N2 != nil {
-		return pk.N2
+func (pk *PublicKey) GetN2() *gmp.Int {
+	if pk.n2 != nil {
+		return pk.n2
 	}
 
-	pk.N2 = new(big.Int).Mul(pk.N, pk.N)
-	return pk.N2
+	pk.n2 = new(gmp.Int).Mul(pk.N, pk.N)
+	return pk.n2
+}
+
+// GetN2AsBigInt returns N^2 where N is the Paillier modulus
+func (pk *PublicKey) GetN2AsBigInt() *big.Int {
+	if pk.n2BigInt != nil {
+		return pk.n2BigInt
+	}
+
+	N := new(big.Int).SetBytes(pk.N.Bytes())
+	pk.n2BigInt = new(big.Int).Mul(N, N)
+	return pk.n2BigInt
 }
 
 // KeyGen generates a new keypair.
@@ -62,26 +75,28 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 	}
 
 	// generate the prime factors
-	var p *big.Int
-	var q *big.Int
-	var err error
+	p := new(gmp.Int)
+	q := new(gmp.Int)
 	for {
-		p, err = rand.Prime(rand.Reader, secparam/2)
+		a, err := rand.Prime(rand.Reader, secparam/2)
 		if err != nil {
 			continue
 		}
-		q, err = rand.Prime(rand.Reader, secparam/2)
+		b, err := rand.Prime(rand.Reader, secparam/2)
 		if err != nil {
 			continue
 		}
 
-		if p.Cmp(q) == 0 {
+		if a.Cmp(b) == 0 {
 			continue
 		}
+
+		p.SetBytes(a.Bytes())
+		q.SetBytes(b.Bytes())
 		break
 	}
 
-	n := new(big.Int).Mul(p, q)
+	n := new(gmp.Int).Mul(p, q)
 	lambda := computePhi(p, q)
 
 	pk := &PublicKey{
@@ -97,16 +112,12 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 // Decrypt a ciphertext to plaintext message.
 // D(c) = [ ((c^lambda) mod N^2) - 1) / N ] lambda^-1 mod N
 // See [KL 08] construction 11.32, page 414.
-func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
+func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *gmp.Int {
 
-	gmpLambda := gmp.NewInt(0).SetBytes(sk.Lambda.Bytes())
-	gmpC := gmp.NewInt(0).SetBytes(ciphertext.C.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(sk.GetN2().Bytes())
-	gmpTmp := new(gmp.Int).Exp(gmpC, gmpLambda, gmpN2)
+	tmp := new(gmp.Int).Exp(ciphertext.C, sk.Lambda, sk.GetN2())
 
-	tmp := new(big.Int).SetBytes(gmpTmp.Bytes())
-	mu := new(big.Int).ModInverse(sk.Lambda, sk.N)
-	m := new(big.Int).Mod(new(big.Int).Mul(l(tmp, sk.N), mu), sk.N)
+	mu := new(gmp.Int).ModInverse(sk.Lambda, sk.N)
+	m := new(gmp.Int).Mod(new(gmp.Int).Mul(l(tmp, sk.N), mu), sk.N)
 	return m
 }
 
@@ -123,23 +134,16 @@ func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *big.Int {
 // E(m, r) = [(1 + N)^m r^N] mod N^2
 //
 // See [KL 08] construction 11.32, page 414.
-func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
-
-	nSquare := pk.GetN2()
+func (pk *PublicKey) EncryptWithR(m *gmp.Int, r *gmp.Int) *Ciphertext {
 
 	// g is _always_ equal n+1
 	// Threshold encryption is safe only for g=n+1 choice.
 	// See [DJN 10], section 5.1
-	g := new(big.Int).Add(pk.N, big.NewInt(1))
-	gmpG := gmp.NewInt(0).SetBytes(g.Bytes())
-	gmpM := gmp.NewInt(0).SetBytes(m.Bytes())
-	gmpN := gmp.NewInt(0).SetBytes(pk.N.Bytes())
-	gmpN2 := gmp.NewInt(0).SetBytes(nSquare.Bytes())
-	gmpR := gmp.NewInt(0).SetBytes(r.Bytes())
-	gm := new(gmp.Int).Exp(gmpG, gmpM, gmpN2)
-	rn := new(gmp.Int).Exp(gmpR, gmpN, gmpN2)
-	c := new(gmp.Int).Mod(new(gmp.Int).Mul(rn, gm), gmpN2)
-	return &Ciphertext{new(big.Int).SetBytes(c.Bytes())}
+	g := new(gmp.Int).Add(pk.N, gmp.NewInt(1))
+	gm := new(gmp.Int).Exp(g, m, pk.GetN2())
+	rn := new(gmp.Int).Exp(r, pk.N, pk.GetN2())
+	c := new(gmp.Int).Mod(new(gmp.Int).Mul(rn, gm), pk.GetN2())
+	return &Ciphertext{new(gmp.Int).SetBytes(c.Bytes())}
 }
 
 // Encrypt a plaintext. The plain text must be smaller that
@@ -151,9 +155,9 @@ func (pk *PublicKey) EncryptWithR(m *big.Int, r *big.Int) *Ciphertext {
 // See [KL 08] construction 11.32, page 414.
 //
 // Returns an error if an error has be returned by io.Reader.
-func (pk *PublicKey) Encrypt(m *big.Int) *Ciphertext {
+func (pk *PublicKey) Encrypt(m *gmp.Int) *Ciphertext {
 
-	var r *big.Int
+	var r *gmp.Int
 	var err error
 	for {
 		r, err = GetRandomNumberInMultiplicativeGroup(pk.N, rand.Reader)
@@ -164,26 +168,26 @@ func (pk *PublicKey) Encrypt(m *big.Int) *Ciphertext {
 	return pk.EncryptWithR(m, r)
 }
 
-func l(u, n *big.Int) *big.Int {
-	t := new(big.Int).Sub(u, big.NewInt(1))
-	return new(big.Int).Div(t, n)
+func l(u, n *gmp.Int) *gmp.Int {
+	t := new(gmp.Int).Sub(u, gmp.NewInt(1))
+	return new(gmp.Int).Div(t, n)
 }
 
-func lcm(x, y *big.Int) *big.Int {
-	return new(big.Int).Mul(new(big.Int).Div(x, new(big.Int).GCD(nil, nil, x, y)), y)
+func lcm(x, y *gmp.Int) *gmp.Int {
+	return new(gmp.Int).Mul(new(gmp.Int).Div(x, new(gmp.Int).GCD(nil, nil, x, y)), y)
 }
 
-func computeMu(g, lambda, n *big.Int) *big.Int {
-	n2 := new(big.Int).Mul(n, n)
-	u := new(big.Int).Exp(g, lambda, n2)
-	return new(big.Int).ModInverse(l(u, n), n)
+func computeMu(g, lambda, n *gmp.Int) *gmp.Int {
+	n2 := new(gmp.Int).Mul(n, n)
+	u := new(gmp.Int).Exp(g, lambda, n2)
+	return new(gmp.Int).ModInverse(l(u, n), n)
 }
 
-func computePhi(p, q *big.Int) *big.Int {
-	return new(big.Int).Mul(minusOne(p), minusOne(q))
+func computePhi(p, q *gmp.Int) *gmp.Int {
+	return new(gmp.Int).Mul(minusOne(p), minusOne(q))
 }
 
 // subtracts 1 from a big int
-func minusOne(x *big.Int) *big.Int {
-	return new(big.Int).Add(x, big.NewInt(-1))
+func minusOne(x *gmp.Int) *gmp.Int {
+	return new(gmp.Int).Add(x, gmp.NewInt(-1))
 }

@@ -2,9 +2,10 @@ package paillier
 
 import (
 	"crypto/rand"
-	"math/big"
 	"reflect"
 	"testing"
+
+	gmp "github.com/ncw/gmp"
 )
 
 func getThresholdPrivateKey() *ThresholdSecretKey {
@@ -31,25 +32,25 @@ func TestDelta(t *testing.T) {
 func TestExp(t *testing.T) {
 	tk := new(ThresholdPublicKey)
 
-	if exp := tk.exp(big.NewInt(720), big.NewInt(10), big.NewInt(49)); 43 != n(exp) {
+	if exp := tk.exp(gmp.NewInt(720), gmp.NewInt(10), gmp.NewInt(49)); 43 != n(exp) {
 		t.Error("Unexpected exponent. Expected 43 but got", exp)
 	}
 
-	if exp := tk.exp(big.NewInt(720), big.NewInt(0), big.NewInt(49)); 1 != n(exp) {
+	if exp := tk.exp(gmp.NewInt(720), gmp.NewInt(0), gmp.NewInt(49)); 1 != n(exp) {
 		t.Error("Unexpected exponent. Expected 0 but got", exp)
 	}
 
-	if exp := tk.exp(big.NewInt(720), big.NewInt(-10), big.NewInt(49)); 8 != n(exp) {
+	if exp := tk.exp(gmp.NewInt(720), gmp.NewInt(-10), gmp.NewInt(49)); 8 != n(exp) {
 		t.Error("Unexpected exponent. Expected 8 but got", exp)
 	}
 }
 
 func TestCombineSharesConstant(t *testing.T) {
 	tk := new(ThresholdPublicKey)
-	tk.N = big.NewInt(101 * 103)
+	tk.N = gmp.NewInt(101 * 103)
 	tk.TotalNumberOfDecryptionServers = 6
 
-	if c := tk.combineSharesConstant(); !reflect.DeepEqual(big.NewInt(4558), c) {
+	if c := tk.combineSharesConstant(); !reflect.DeepEqual(gmp.NewInt(4558), c) {
 		t.Error("wrong combined key.  ", c)
 	}
 }
@@ -72,22 +73,36 @@ func TestDecrypt(t *testing.T) {
 	}
 }
 
-func TestCopyVi(t *testing.T) {
+func TestCopyVerificationKeys(t *testing.T) {
 	key := new(ThresholdSecretKey)
-	key.VerificationKeys = []*big.Int{b(34), b(2), b(29)}
+	key.VerificationKeys = []*gmp.Int{b(34), b(2), b(29)}
 	vi := key.copyVerificationKeys()
-	if !reflect.DeepEqual(vi, key.VerificationKeys) {
-		t.Fail()
+
+	for i, k := range vi {
+		if !reflect.DeepEqual(ToBigInt(k), ToBigInt(key.VerificationKeys[i])) {
+			t.Fail()
+		}
 	}
+
 	key.VerificationKeys[1] = b(89)
-	if reflect.DeepEqual(vi, key.VerificationKeys) {
+
+	allEqual := true
+	for i, k := range vi {
+		if !reflect.DeepEqual(ToBigInt(k), ToBigInt(key.VerificationKeys[i])) {
+			allEqual = false
+			break
+		}
+	}
+
+	if allEqual {
 		t.Fail()
 	}
+
 }
 
 func TestDecryptWithThresholdKey(t *testing.T) {
 	pd := getThresholdPrivateKey()
-	c := pd.Encrypt(big.NewInt(876))
+	c := pd.Encrypt(gmp.NewInt(876))
 	pd.PartialDecrypt(c.C)
 }
 
@@ -109,7 +124,7 @@ func TestVerifyPart2(t *testing.T) {
 	pd := new(PartialDecryptionZKP)
 	pd.Key = new(ThresholdPublicKey)
 	pd.ID = 1
-	pd.Key.VerificationKeys = []*big.Int{b(77), b(67)} // vi is 67
+	pd.Key.VerificationKeys = []*gmp.Int{b(77), b(67)} // vi is 67
 	pd.Key.N = b(131)
 	pd.Key.VerificationKey = b(101)
 	pd.E = b(112)
@@ -121,7 +136,7 @@ func TestVerifyPart2(t *testing.T) {
 
 func TestPartialDecryptionWithZKP(t *testing.T) {
 	pd := getThresholdPrivateKey()
-	c := pd.Encrypt(big.NewInt(876))
+	c := pd.Encrypt(gmp.NewInt(876))
 
 	ZKP, err := pd.PartialDecryptionWithZKP(c.C)
 	if err != nil {
@@ -242,7 +257,7 @@ func TestHomomorphicThresholdEncryption(t *testing.T) {
 
 	combined, _ := tpks[0].CombinePartialDecryptions([]*PartialDecryption{share1, share2})
 
-	expected := big.NewInt(32) // 13 + 19
+	expected := gmp.NewInt(32) // 13 + 19
 
 	if !reflect.DeepEqual(combined, expected) { // 13 + 19
 		t.Errorf("Unexpected decryption result. Expected %v but got %v", expected, combined)
@@ -373,7 +388,7 @@ func TestVerifyDecryption(t *testing.T) {
 	if err = pk.VerifyDecryption(cipher.C, b(100), pds); err == nil {
 		t.Error(err)
 	}
-	if err = pk.VerifyDecryption(new(big.Int).Add(b(1), cipher.C), b(101), pds); err == nil {
+	if err = pk.VerifyDecryption(new(gmp.Int).Add(b(1), cipher.C), b(101), pds); err == nil {
 		t.Error(err)
 	}
 }
@@ -388,14 +403,14 @@ func BenchmarkThresholdDecrypt(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	m := big.NewInt(100)
+	m := gmp.NewInt(100)
 	c := tpks[1].Encrypt(m)
 	for i := 0; i < b.N; i++ {
 		ThresholdDecrypt(c, tpks)
 	}
 }
 
-func ThresholdDecrypt(c *Ciphertext, tpks []*ThresholdSecretKey) (*big.Int, error) {
+func ThresholdDecrypt(c *Ciphertext, tpks []*ThresholdSecretKey) (*gmp.Int, error) {
 	share1 := tpks[0].PartialDecrypt(c.C)
 	share2 := tpks[1].PartialDecrypt(c.C)
 	share3 := tpks[2].PartialDecrypt(c.C)
