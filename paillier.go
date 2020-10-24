@@ -259,6 +259,16 @@ func (pk *PublicKey) EncryptOne() *Ciphertext {
 	return pk.Encrypt(gmp.NewInt(1))
 }
 
+// EncryptZeroAtLevel returns a fresh encryption of 0 at the specified level
+func (pk *PublicKey) EncryptZeroAtLevel(level EncryptionLevel) *Ciphertext {
+	return pk.EncryptAtLevel(gmp.NewInt(0), level)
+}
+
+// EncryptOneAtLevel returns a fresh encryption of 1 at the specified Level
+func (pk *PublicKey) EncryptOneAtLevel(level EncryptionLevel) *Ciphertext {
+	return pk.EncryptAtLevel(gmp.NewInt(1), level)
+}
+
 // NewCiphertextFromBytes initializes a ciphertext from a byte encoding.
 // Requires the public key to ensure field elements are correct (see PBC library)
 func (pk *PublicKey) NewCiphertextFromBytes(data []byte) (*Ciphertext, error) {
