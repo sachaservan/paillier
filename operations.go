@@ -68,7 +68,7 @@ func (pk *PublicKey) Randomize(ct *Ciphertext) *Ciphertext {
 // NestedRandomize homomorphically randomizes a nested encryption
 // (only works with doubly encrypted values)
 func (pk *PublicKey) NestedRandomize(ct *Ciphertext) *Ciphertext {
-	if ct.Level != EncLevelThree {
+	if ct.Level != EncLevelTwo {
 		panic("can only homomorphically randomize doubly encrypted values")
 	}
 
@@ -79,7 +79,7 @@ func (pk *PublicKey) NestedRandomize(ct *Ciphertext) *Ciphertext {
 
 // NestedAdd homomorphically adds an encrypted value to a doubly encrypted value
 func (pk *PublicKey) NestedAdd(ct1 *Ciphertext, ct2 *Ciphertext) *Ciphertext {
-	if ct1.Level != EncLevelThree || ct2.Level != EncLevelTwo {
+	if ct1.Level != EncLevelTwo || ct2.Level != EncLevelOne {
 		panic("can only homomorphically add an encrypted value to a doubly encrypted value")
 	}
 
@@ -88,7 +88,7 @@ func (pk *PublicKey) NestedAdd(ct1 *Ciphertext, ct2 *Ciphertext) *Ciphertext {
 
 // NestedSub homomorphically subtracts  an encrypted value from a doubly encrypted value
 func (pk *PublicKey) NestedSub(ct1 *Ciphertext, ct2 *Ciphertext) *Ciphertext {
-	if ct1.Level != EncLevelThree || ct2.Level != EncLevelTwo {
+	if ct1.Level != EncLevelTwo || ct2.Level != EncLevelOne {
 		panic("can only homomorphically add an encrypted value to a doubly encrypted value")
 	}
 

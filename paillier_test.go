@@ -44,7 +44,7 @@ func TestEncryptDecryptLevel3(t *testing.T) {
 	for i := 1; i < 10; i++ {
 		sk, pk := KeyGen(64)
 		value := ToBigInt(gmp.NewInt(0).Sub(pk.GetN2(), gmp.NewInt(int64(i))))
-		ciphertext := pk.EncryptAtLevel(ToGmpInt(value), EncLevelThree)
+		ciphertext := pk.EncryptAtLevel(ToGmpInt(value), EncLevelTwo)
 		returnedValue := ToBigInt(sk.Decrypt(ciphertext))
 
 		if !reflect.DeepEqual(value, returnedValue) {
@@ -58,10 +58,10 @@ func TestDoubleEncryptDecrypt(t *testing.T) {
 	for i := 1; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelTwo)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelThree) // double encryption
+		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
 		firstDecryption := sk.Decrypt(ciphertextLevelThree)
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelTwo}
+		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
 		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
 
 		returnedValue := ToBigInt(secondDecryption)
@@ -76,13 +76,13 @@ func TestDoubleEncryptRandomize(t *testing.T) {
 	for i := 1; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelTwo)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelThree) // double encryption
+		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
 
 		randomizedLevelThree := pk.NestedRandomize(ciphertextLevelThree)
 
 		firstDecryption := sk.Decrypt(randomizedLevelThree)
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelTwo}
+		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
 
 		if reflect.DeepEqual(ToBigInt(firstDecryptionAsLevel2Ciphertext.C), ToBigInt(ciphertextLevelTwo.C)) {
 			t.Error("did not randomized inner ciphertext ", firstDecryptionAsLevel2Ciphertext.C, " is equal to ", ciphertextLevelTwo.C)
@@ -103,14 +103,14 @@ func TestDoubleEncryptAdd(t *testing.T) {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
 
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelTwo)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelThree) // double encryption
+		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
 
 		ciphertextLevelThree = pk.NestedAdd(ciphertextLevelThree, ciphertextLevelTwo) // add the value to itself in the nested encryption
 
 		firstDecryption := sk.Decrypt(ciphertextLevelThree)
 
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelTwo}
+		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
 		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
 
 		returnedValue := ToBigInt(secondDecryption)
@@ -126,14 +126,14 @@ func TestDoubleEncryptSub(t *testing.T) {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
 
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelTwo)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelThree) // double encryption
+		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
 
 		ciphertextLevelThree = pk.NestedSub(ciphertextLevelThree, ciphertextLevelTwo) // add the value to itself in the nested encryption
 
 		firstDecryption := sk.Decrypt(ciphertextLevelThree)
 
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelTwo}
+		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
 		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
 
 		returnedValue := ToBigInt(secondDecryption)

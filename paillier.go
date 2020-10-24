@@ -15,14 +15,14 @@ import (
 type EncryptionLevel int
 
 const (
+	// EncLevelOne -- s=1
+	EncLevelOne EncryptionLevel = iota
 	// EncLevelTwo -- s=2
-	EncLevelTwo EncryptionLevel = iota
-	// EncLevelThree -- s=3
-	EncLevelThree
+	EncLevelTwo
 )
 
 // DefaultEncryptionLevel is set to s=2
-const DefaultEncryptionLevel EncryptionLevel = EncLevelTwo
+const DefaultEncryptionLevel EncryptionLevel = EncLevelOne
 
 // PublicKey contains all the values necessary to encrypt and perform
 // homomorphic operations over ciphertexts
@@ -302,7 +302,7 @@ func (pk *PublicKey) getModuliForLevel(level EncryptionLevel) (int, *gmp.Int, *g
 	s := 1
 	modPrevLevel := pk.N
 	mod := pk.GetN2()
-	if level == EncLevelThree {
+	if level == EncLevelTwo {
 		s = 2
 		modPrevLevel = pk.GetN2()
 		mod = pk.GetN3()
