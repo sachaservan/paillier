@@ -1,12 +1,28 @@
 package paillier
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/gob"
 	"errors"
 	"math/big"
 
 	gmp "github.com/ncw/gmp"
 )
+
+// EncryptionLevel is the (modulus exponent) in the
+// generalized paillier encryption scheme
+type EncryptionLevel int
+
+const (
+	// EncLevelTwo -- s=2
+	EncLevelTwo EncryptionLevel = iota
+	// EncLevelThree -- s=3
+	EncLevelThree
+)
+
+// DefaultEncryptionLevel is set to s=2
+const DefaultEncryptionLevel EncryptionLevel = EncLevelTwo
 
 // PublicKey contains all the values necessary to encrypt and perform
 // homomorphic operations over ciphertexts
@@ -14,19 +30,20 @@ type PublicKey struct {
 	N        *gmp.Int //N=p*q
 	G        *gmp.Int // usually G is set to N+1
 	n2       *gmp.Int // cache value of N^2
+	n3       *gmp.Int // cache value of N^3
 	n2BigInt *big.Int // cache value of n^2 as big int type
 }
 
 // SecretKey contains the necessary values needed to decrypt a ciphertext
 type SecretKey struct {
 	PublicKey
-	Lambda, Lm, Mu *gmp.Int
+	Lambda, Lm, Mu, m *gmp.Int
 }
 
 // Ciphertext contains the encryption of a value
-// TODO: add s
 type Ciphertext struct {
-	C *gmp.Int
+	C     *gmp.Int
+	Level EncryptionLevel // generalized paillier encryption level
 }
 
 // GetN2 returns N^2 where N is the Paillier modulus
@@ -37,6 +54,17 @@ func (pk *PublicKey) GetN2() *gmp.Int {
 
 	pk.n2 = new(gmp.Int).Mul(pk.N, pk.N)
 	return pk.n2
+}
+
+// GetN3 returns N^3 where N is the Paillier modulus
+func (pk *PublicKey) GetN3() *gmp.Int {
+	if pk.n3 != nil {
+		return pk.n3
+	}
+
+	pk.n3 = new(gmp.Int).Mul(pk.N, pk.N)
+	pk.n3.Mul(pk.n3, pk.N)
+	return pk.n3
 }
 
 // GetN2AsBigInt returns N^2 where N is the Paillier modulus
@@ -73,22 +101,25 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 	// generate the prime factors
 	p := new(gmp.Int)
 	q := new(gmp.Int)
+	m := new(gmp.Int)
 	for {
-		a, err := rand.Prime(rand.Reader, secparam/2)
+		p1, err := rand.Prime(rand.Reader, secparam/2)
 		if err != nil {
 			continue
 		}
-		b, err := rand.Prime(rand.Reader, secparam/2)
+		q1, err := rand.Prime(rand.Reader, secparam/2)
 		if err != nil {
 			continue
 		}
 
-		if a.Cmp(b) == 0 {
+		if p1.Cmp(q1) == 0 {
 			continue
 		}
 
-		p.SetBytes(a.Bytes())
-		q.SetBytes(b.Bytes())
+		m = ToGmpInt(new(big.Int).Mul(p1, q1))
+
+		p.SetBytes(p1.Bytes())
+		q.SetBytes(q1.Bytes())
 		break
 	}
 
@@ -99,22 +130,64 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 		N: n,
 	}
 
-	return &SecretKey{
+	sk := &SecretKey{
 		PublicKey: *pk,
 		Lambda:    lambda,
-	}, pk
+		m:         m,
+	}
+
+	return sk, pk
 }
 
 // Decrypt a ciphertext to plaintext message.
-// D(c) = [ ((c^lambda) mod N^2) - 1) / N ] lambda^-1 mod N
-// See [KL 08] construction 11.32, page 414.
 func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *gmp.Int {
 
-	tmp := new(gmp.Int).Exp(ciphertext.C, sk.Lambda, sk.GetN2())
+	s, ns, ns1 := sk.getModuliForLevel(ciphertext.Level)
 
-	mu := new(gmp.Int).ModInverse(sk.Lambda, sk.N)
-	m := new(gmp.Int).Mod(new(gmp.Int).Mul(l(tmp, sk.N), mu), sk.N)
+	tmp := new(gmp.Int).Exp(ciphertext.C, sk.Lambda, ns1) // c^lambda mod N^s+1
+	ml := sk.recoveryAlgorithm(tmp, s)                    // recoveryAlgorithm outputs m*lambda
+	mu := new(gmp.Int).ModInverse(sk.Lambda, ns)          // lambda^-1
+
+	m := new(gmp.Int).Mod(new(gmp.Int).Mul(ml, mu), ns)
+
 	return m
+}
+
+// recovery algorithm used as a subroutine in the decryption alg of the generalized
+// paillier scheme.
+// See [J03] Proof of Theorem 2.1 for algorithm descryption
+func (sk *SecretKey) recoveryAlgorithm(a *gmp.Int, s int) *gmp.Int {
+
+	i := gmp.NewInt(0)
+
+	for j := 1; j <= s; j++ {
+		nj := new(gmp.Int).Exp(sk.N, gmp.NewInt(int64(j)), nil)    // n^j+1
+		nj1 := new(gmp.Int).Exp(sk.N, gmp.NewInt(int64(j+1)), nil) // n^j+1
+
+		amod := new(gmp.Int).Mod(a, nj1)
+
+		t1 := L(amod, sk.N)
+		t2 := new(gmp.Int).SetBytes(i.Bytes())
+
+		for k := 2; k <= j; k++ {
+			nk := new(gmp.Int).Exp(sk.N, gmp.NewInt(int64(k-1)), nil) // n^k-1
+			i.Sub(i, OneBigInt)                                       // i = i-1
+
+			t2.Mul(t2, i).Mod(t2, nj) // t2 = t2*i mod n^j
+
+			// compute t2 = t1 - (t2*n^k-1) / k! mod n^j
+			t2.Mul(t2, nk)
+			kFac := Factorial(k)
+			kFac.ModInverse(kFac, nj)
+			t2.Mul(t2, kFac) // t2 = (t2*n^k-1) / k!
+			t2.Sub(t1, t2)   // t2 = t1 - (t2*n^k-1) / k!
+			t1.Mod(t2, nj)   // t1 =  t1 - (t2*n^k-1) / k! mod nj
+		}
+
+		i = t1
+	}
+
+	return i
 }
 
 // EncryptWithR encrypts a plaintext into a cypher one with random `r` specified
@@ -131,15 +204,7 @@ func (sk *SecretKey) Decrypt(ciphertext *Ciphertext) *gmp.Int {
 //
 // See [KL 08] construction 11.32, page 414.
 func (pk *PublicKey) EncryptWithR(m *gmp.Int, r *gmp.Int) *Ciphertext {
-
-	// g is _always_ equal n+1
-	// Threshold encryption is safe only for g=n+1 choice.
-	// See [DJN 10], section 5.1
-	g := new(gmp.Int).Add(pk.N, gmp.NewInt(1))
-	gm := new(gmp.Int).Exp(g, m, pk.GetN2())
-	rn := new(gmp.Int).Exp(r, pk.N, pk.GetN2())
-	c := new(gmp.Int).Mod(new(gmp.Int).Mul(rn, gm), pk.GetN2())
-	return &Ciphertext{new(gmp.Int).SetBytes(c.Bytes())}
+	return pk.EncryptWithRAtLevel(m, r, DefaultEncryptionLevel)
 }
 
 // Encrypt a plaintext. The plain text must be smaller that
@@ -152,6 +217,26 @@ func (pk *PublicKey) EncryptWithR(m *gmp.Int, r *gmp.Int) *Ciphertext {
 //
 // Returns an error if an error has be returned by io.Reader.
 func (pk *PublicKey) Encrypt(m *gmp.Int) *Ciphertext {
+	return pk.EncryptAtLevel(m, DefaultEncryptionLevel)
+}
+
+// EncryptWithRAtLevel encrypts a plaintext as EncryptWithR but in the space N^s
+func (pk *PublicKey) EncryptWithRAtLevel(m *gmp.Int, r *gmp.Int, level EncryptionLevel) *Ciphertext {
+
+	_, ns, ns1 := pk.getModuliForLevel(level)
+
+	// g is _always_ equal n+1
+	// Threshold encryption is safe only for g=n+1 choice.
+	// See [DJN 10], section 5.1
+	g := new(gmp.Int).Add(pk.N, gmp.NewInt(1))
+	gm := new(gmp.Int).Exp(g, m, ns1)
+	rn := new(gmp.Int).Exp(r, ns, ns1)
+	c := new(gmp.Int).Mod(new(gmp.Int).Mul(rn, gm), ns1)
+	return &Ciphertext{c, level}
+}
+
+// EncryptAtLevel encrypts a plaintext at the recusive level s
+func (pk *PublicKey) EncryptAtLevel(m *gmp.Int, level EncryptionLevel) *Ciphertext {
 
 	var r *gmp.Int
 	var err error
@@ -161,7 +246,7 @@ func (pk *PublicKey) Encrypt(m *gmp.Int) *Ciphertext {
 			break
 		}
 	}
-	return pk.EncryptWithR(m, r)
+	return pk.EncryptWithRAtLevel(m, r, level)
 }
 
 // EncryptZero returns a fresh encryption of 0
@@ -181,16 +266,44 @@ func (pk *PublicKey) NewCiphertextFromBytes(data []byte) (*Ciphertext, error) {
 		return nil, errors.New("no data provided")
 	}
 
-	return &Ciphertext{C: new(gmp.Int).SetBytes(data)}, nil
+	ct := &Ciphertext{}
+
+	reader := bytes.NewReader(data)
+	dec := gob.NewDecoder(reader)
+	if err := dec.Decode(ct); err != nil {
+		return nil, err
+	}
+
+	return ct, nil
 }
 
 // Bytes returns the byte encoding of the ciphertext struct
-func (ct *Ciphertext) Bytes() ([]byte, error) {
-	return ct.C.Bytes(), nil
+func (ct *Ciphertext) Bytes() []byte {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(ct); err != nil {
+		return nil
+	}
+
+	return buf.Bytes()
 }
 
-func l(u, n *gmp.Int) *gmp.Int {
-	t := new(gmp.Int).Sub(u, gmp.NewInt(1))
+func (pk *PublicKey) getModuliForLevel(level EncryptionLevel) (int, *gmp.Int, *gmp.Int) {
+	s := 1
+	modPrevLevel := pk.N
+	mod := pk.GetN2()
+	if level == EncLevelThree {
+		s = 2
+		modPrevLevel = pk.GetN2()
+		mod = pk.GetN3()
+	}
+
+	return s, modPrevLevel, mod
+}
+
+// L is the function is paillier defined as (u-1)/n
+func L(u, n *gmp.Int) *gmp.Int {
+	t := new(gmp.Int).Sub(u, OneBigInt)
 	return new(gmp.Int).Div(t, n)
 }
 
@@ -201,7 +314,7 @@ func lcm(x, y *gmp.Int) *gmp.Int {
 func computeMu(g, lambda, n *gmp.Int) *gmp.Int {
 	n2 := new(gmp.Int).Mul(n, n)
 	u := new(gmp.Int).Exp(g, lambda, n2)
-	return new(gmp.Int).ModInverse(l(u, n), n)
+	return new(gmp.Int).ModInverse(L(u, n), n)
 }
 
 func computePhi(p, q *gmp.Int) *gmp.Int {

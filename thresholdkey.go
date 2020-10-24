@@ -141,7 +141,7 @@ func (tk *ThresholdPublicKey) exp(a, b, c *gmp.Int) *gmp.Int {
 // from valid shares provided by decryption servers and multiplies this value
 // by `combineSharesContant` which is specific to the given public `ThresholdKey`.
 func (tk *ThresholdPublicKey) computeDecryption(cprime *gmp.Int) *gmp.Int {
-	l := l(cprime, tk.N)
+	l := L(cprime, tk.N)
 	return new(gmp.Int).Mod(new(gmp.Int).Mul(tk.combineSharesConstant(), l), tk.N)
 }
 

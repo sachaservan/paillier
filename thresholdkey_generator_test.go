@@ -224,8 +224,8 @@ func TestInitShortcuts(t *testing.T) {
 	if !reflect.DeepEqual(ToBigInt(tkh.nm), ToBigInt(new(gmp.Int).Mul(b(744193), b(185617)))) {
 		t.Error("wrong nm", tkh.nm)
 	}
-	if !reflect.DeepEqual(ToBigInt(tkh.nSquare), ToBigInt(new(gmp.Int).Mul(b(744193), b(744193)))) {
-		t.Error("wrong nSquare", tkh.nSquare)
+	if !reflect.DeepEqual(ToBigInt(tkh.n2), ToBigInt(new(gmp.Int).Mul(b(744193), b(744193)))) {
+		t.Error("wrong n2", tkh.n2)
 	}
 }
 
@@ -315,7 +315,7 @@ func TestCreateVerificationKeys(t *testing.T) {
 	tkh := new(ThresholdKeyGenerator)
 	tkh.TotalNumberOfDecryptionServers = 10
 	tkh.v = b(54)
-	tkh.nSquare = b(101 * 101)
+	tkh.n2 = b(101 * 101)
 	vArr := tkh.createVerificationKeys([]*gmp.Int{b(12), b(90), b(103)})
 	exp := []*gmp.Int{b(6162), b(304), b(2728)}
 	if !reflect.DeepEqual(vArr, exp) {
@@ -371,12 +371,12 @@ func TestComputeV(t *testing.T) {
 	}
 
 	tkh.n = b(1907 * 1823)
-	tkh.nSquare = new(gmp.Int).Mul(tkh.n, tkh.n)
+	tkh.n2 = new(gmp.Int).Mul(tkh.n, tkh.n)
 	for i := 0; i < 100; i++ {
 		if err := tkh.computeV(); err != nil {
 			t.Error(err)
 		}
-		if tkh.v.Cmp(tkh.nSquare) > 0 {
+		if tkh.v.Cmp(tkh.n2) > 0 {
 			t.Error("v is too big")
 		}
 		if tkh.v.Cmp(tkh.n) > 0 {

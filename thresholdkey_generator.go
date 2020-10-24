@@ -28,10 +28,10 @@ type ThresholdKeyGenerator struct {
 	p1 *gmp.Int // p1 is prime of `PublicKeyBitLength/2 - 1` bits
 	q1 *gmp.Int // q1 is prime of `PublicKeyBitLength/2 - 1` bits
 
-	n       *gmp.Int // n=p*q and is of `PublicKeyBitLength` bits
-	m       *gmp.Int // m = p1*q1
-	nSquare *gmp.Int // nSquare = n*n
-	nm      *gmp.Int // nm = n*m
+	n  *gmp.Int // n=p*q and is of `PublicKeyBitLength` bits
+	m  *gmp.Int // m = p1*q1
+	n2 *gmp.Int // n2 = n*n
+	nm *gmp.Int // nm = n*m
 
 	// As specified in the paper, d must satify d=1 mod n and d=0 mod m
 	d *gmp.Int
@@ -113,7 +113,7 @@ func (tkg *ThresholdKeyGenerator) initQandQ1() error {
 func (tkg *ThresholdKeyGenerator) initShortcuts() {
 	tkg.n = new(gmp.Int).Mul(tkg.p, tkg.q)
 	tkg.m = new(gmp.Int).Mul(tkg.p1, tkg.q1)
-	tkg.nSquare = new(gmp.Int).Mul(tkg.n, tkg.n)
+	tkg.n2 = new(gmp.Int).Mul(tkg.n, tkg.n)
 	tkg.nm = new(gmp.Int).Mul(tkg.n, tkg.m)
 }
 
@@ -146,7 +146,7 @@ func (tkg *ThresholdKeyGenerator) initPsAndQs() error {
 // v generates a cyclic group of squares in Zn^2.
 func (tkg *ThresholdKeyGenerator) computeV() error {
 	var err error
-	tkg.v, err = GetRandomGeneratorOfTheQuadraticResidue(tkg.nSquare, tkg.random)
+	tkg.v, err = GetRandomGeneratorOfTheQuadraticResidue(tkg.n2, tkg.random)
 	return err
 }
 
@@ -248,7 +248,7 @@ func (tkg *ThresholdKeyGenerator) createVerificationKeys(shares []*gmp.Int) (viA
 	delta := tkg.delta()
 	for i, share := range shares {
 		tmp := new(gmp.Int).Mul(share, delta)
-		viArray[i] = new(gmp.Int).Exp(tkg.v, tmp, tkg.nSquare)
+		viArray[i] = new(gmp.Int).Exp(tkg.v, tmp, tkg.n2)
 	}
 	return viArray
 }
