@@ -230,7 +230,7 @@ func (tsk *ThresholdSecretKey) PartialDecryptionWithZKP(c *gmp.Int) (*PartialDec
 	pd.Decryption = tsk.PartialDecrypt(c).Decryption
 
 	// choose random number
-	rBig, err := rand.Int(rand.Reader, tsk.GetN2AsBigInt())
+	rBig, err := rand.Int(rand.Reader, ToBigInt(tsk.GetN2()))
 	if err != nil {
 		return nil, err
 	}

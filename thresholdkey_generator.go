@@ -256,6 +256,7 @@ func (tkg *ThresholdKeyGenerator) createVerificationKeys(shares []*gmp.Int) (viA
 func (tkg *ThresholdKeyGenerator) createSecretKey(i int, share *gmp.Int, verificationKeys []*gmp.Int) *ThresholdSecretKey {
 	ret := new(ThresholdSecretKey)
 	ret.N = tkg.n
+	ret.G = new(gmp.Int).Add(OneBigInt, tkg.n)
 	ret.VerificationKey = tkg.v
 
 	ret.TotalNumberOfDecryptionServers = tkg.TotalNumberOfDecryptionServers
