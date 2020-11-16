@@ -104,6 +104,7 @@ func TestDoubleEncryptRandomize(t *testing.T) {
 	sk, pk := KeyGen(64)
 
 	for i := 1; i < 1000; i++ {
+
 		value := gmp.NewInt(int64(i))
 		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
 		ciphertextLevelTwo := pk.EncryptAtLevel(ciphertextLevelOne.C, EncLevelTwo) // double encryption

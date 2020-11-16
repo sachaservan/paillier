@@ -102,22 +102,17 @@ func (pk *PublicKey) NestedRandomize(ct *Ciphertext) (*Ciphertext, *gmp.Int, *gm
 	n2 := pk.GetN2()
 	n3 := pk.GetN3()
 
-	// generators for randomness
-	h1 := pk.getGeneratorOfQuadraticResiduesForLevel(EncLevelOne)
-
-	bound1 := new(gmp.Int).Mul(n, pk.K)
-
-	a, _ := GetRandomNumber(bound1, rand.Reader)
+	a, _ := GetRandomNumberInMultiplicativeGroup(n, rand.Reader)
 	b, _ := GetRandomNumberInMultiplicativeGroup(n, rand.Reader)
 
-	ha := new(gmp.Int).Exp(h1, a, n2)
+	an := new(gmp.Int).Exp(a, n, n2)
 	bn2 := new(gmp.Int).Exp(b, n2, n3)
 
 	r := new(gmp.Int).Set(ct.C)
-	r.Exp(r, ha, n3)
+	r.Exp(r, an, n3)
 	r.Mul(r, bn2)
 	r.Mod(r, n3)
-	rct := &Ciphertext{C: r, Level: ct.Level, EncMethod: AlternativeEncryption}
+	rct := &Ciphertext{C: r, Level: ct.Level, EncMethod: RegularEncryption}
 
 	return rct, a, b
 }
