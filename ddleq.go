@@ -6,10 +6,16 @@ import (
 	gmp "github.com/ncw/gmp"
 )
 
-// DDLEQProof provides a proof that two ciphertexts
+// DDLEQProofInstance provides a proof that two ciphertexts
 // are "nested re-encryptions" of one another
-type DDLEQProof struct {
+type DDLEQProofInstance struct {
 	X, Y, Alpha, E, F *gmp.Int
+}
+
+// DDLEQProof constains a series of DDLEQProofInstance
+// each providing soundness 1/2
+type DDLEQProof struct {
+	Instances []*DDLEQProofInstance
 }
 
 // ProveDDLEQ proves the following relation between ciphertexts
@@ -17,7 +23,36 @@ type DDLEQProof struct {
 // that is, ct2 is a "double re-encryption" of ct1
 // for this to protocol to work, ct2 must be generated using NestedRandomize function.
 // The resulting proof can be verified (non-interactively in the ROM) using VerifyDDLEQProof
-func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProof, error) {
+// Soundness of the proof is 1 - 2^-secpar
+func (sk *SecretKey) ProveDDLEQ(secpar int, ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProof, error) {
+
+	p := &DDLEQProof{Instances: make([]*DDLEQProofInstance, secpar)}
+
+	var err error
+	for i := 0; i < secpar; i++ {
+		p.Instances[i], err = sk.proveDDLEQInstance(ct1, ct2, a, b)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return p, nil
+}
+
+// VerifyDDLEQProof checks if the provided proof is valid for the ciphertexts
+// the verification is done non-interactively and has soundness 1/2
+func (pk *PublicKey) VerifyDDLEQProof(ct1 *Ciphertext, ct2 *Ciphertext, proof *DDLEQProof) bool {
+
+	for i := 0; i < len(proof.Instances); i++ {
+		if !pk.verifyDDLEQProofInstance(ct1, ct2, proof.Instances[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (sk *SecretKey) proveDDLEQInstance(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProofInstance, error) {
 
 	// powers of n needed in the protocol
 	n := sk.N
@@ -79,7 +114,7 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 		f.Mod(f, n3)
 	}
 
-	proof := &DDLEQProof{
+	proof := &DDLEQProofInstance{
 		X:     x,
 		Y:     y,
 		Alpha: alpha,
@@ -91,9 +126,7 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 
 }
 
-// VerifyDDLEQProof checks if the provided proof is valid for the ciphertexts
-// the verification is done non-interactively and has soundness 1/2
-func (pk *PublicKey) VerifyDDLEQProof(ct1 *Ciphertext, ct2 *Ciphertext, proof *DDLEQProof) bool {
+func (pk *PublicKey) verifyDDLEQProofInstance(ct1 *Ciphertext, ct2 *Ciphertext, proof *DDLEQProofInstance) bool {
 
 	// powers of n needed in the protocol
 	n := pk.N
@@ -104,9 +137,9 @@ func (pk *PublicKey) VerifyDDLEQProof(ct1 *Ciphertext, ct2 *Ciphertext, proof *D
 	// hashdata = c1 || c2 || r2 || s2 || alpha
 	chalBit := RandomOracleBit(ct1.C, ct2.C, proof.X, proof.Y, proof.Alpha)
 
-	check := ct1.C
+	check := new(gmp.Int).Set(ct1.C)
 	if chalBit {
-		check = ct2.C
+		check.Set(ct2.C)
 	}
 
 	en := new(gmp.Int).Exp(proof.E, n, n2)
