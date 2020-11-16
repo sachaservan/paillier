@@ -1,6 +1,7 @@
 package paillier
 
 import (
+	"crypto/rand"
 	"fmt"
 
 	gmp "github.com/ncw/gmp"
@@ -21,8 +22,9 @@ func (pk *PublicKey) Add(cts ...*Ciphertext) *Ciphertext {
 	}
 
 	return &Ciphertext{
-		C:     accumulator,
-		Level: level,
+		C:         accumulator,
+		Level:     level,
+		EncMethod: MixedEncryption,
 	}
 }
 
@@ -46,8 +48,9 @@ func (pk *PublicKey) Sub(cts ...*Ciphertext) *Ciphertext {
 	}
 
 	return &Ciphertext{
-		C:     accumulator,
-		Level: level,
+		C:         accumulator,
+		Level:     level,
+		EncMethod: MixedEncryption,
 	}
 }
 
@@ -57,7 +60,7 @@ func (pk *PublicKey) ConstMult(ct *Ciphertext, k *gmp.Int) *Ciphertext {
 	_, _, ns1 := pk.getModuliForLevel(ct.Level)
 
 	m := new(gmp.Int).Exp(ct.C, k, ns1)
-	return &Ciphertext{m, ct.Level}
+	return &Ciphertext{m, ct.Level, ct.EncMethod}
 }
 
 // Randomize randomizes an encryption
@@ -65,16 +68,58 @@ func (pk *PublicKey) Randomize(ct *Ciphertext) *Ciphertext {
 	return pk.Add(ct, pk.Encrypt(ZeroBigInt))
 }
 
+// ExtractRandonness returns the randomness used in the encryption
+// See the following stack exchange post:
+// https://crypto.stackexchange.com/questions/46736/how-to-prove-correct-decryption-in-paillier-cryptosystem
+// for explanation
+func (sk *SecretKey) ExtractRandonness(ct *Ciphertext) *gmp.Int {
+
+	_, ns, ns1 := sk.getModuliForLevel(ct.Level)
+
+	nsInv := new(gmp.Int).ModInverse(ns, sk.Lambda)
+
+	v := sk.Decrypt(ct)
+	gv := new(gmp.Int).Exp(sk.G, v, ns1)
+	gvInv := gv.ModInverse(gv, ns1)
+
+	z := gvInv.Mul(gvInv, ct.C) // make a ciphertext encrypting zero to isolate randomness
+	z.Mod(z, ns1)
+
+	res := new(gmp.Int).Exp(z, nsInv, sk.N)
+
+	return res
+}
+
 // NestedRandomize homomorphically randomizes a nested encryption
 // (only works with doubly encrypted values)
-func (pk *PublicKey) NestedRandomize(ct *Ciphertext) *Ciphertext {
+// returns randomized ciphertext and randomness used
+func (pk *PublicKey) NestedRandomize(ct *Ciphertext) (*Ciphertext, *gmp.Int, *gmp.Int) {
 	if ct.Level != EncLevelTwo {
 		panic("can only homomorphically randomize doubly encrypted values")
 	}
 
-	rand := pk.Encrypt(ZeroBigInt)
+	n := pk.N
+	n2 := pk.GetN2()
+	n3 := pk.GetN3()
 
-	return pk.ConstMult(ct, rand.C)
+	// generators for randomness
+	h1 := pk.getGeneratorOfQuadraticResiduesForLevel(EncLevelOne)
+
+	bound1 := new(gmp.Int).Mul(n, pk.K)
+
+	a, _ := GetRandomNumber(bound1, rand.Reader)
+	b, _ := GetRandomNumberInMultiplicativeGroup(n, rand.Reader)
+
+	ha := new(gmp.Int).Exp(h1, a, n2)
+	bn2 := new(gmp.Int).Exp(b, n2, n3)
+
+	r := new(gmp.Int).Set(ct.C)
+	r.Exp(r, ha, n3)
+	r.Mul(r, bn2)
+	r.Mod(r, n3)
+	rct := &Ciphertext{C: r, Level: ct.Level, EncMethod: AlternativeEncryption}
+
+	return rct, a, b
 }
 
 // NestedAdd homomorphically adds an encrypted value to a doubly encrypted value
