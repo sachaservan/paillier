@@ -24,11 +24,8 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 	n2 := sk.GetN2()
 	n3 := sk.GetN3()
 
-	// generators for randomness
-	h1 := sk.getGeneratorOfQuadraticResiduesForLevel(EncLevelOne)
-
 	sanityCheck := new(gmp.Int).Set(ct1.C)
-	sanityCheck.Exp(sanityCheck, new(gmp.Int).Exp(h1, a, n2), n3)
+	sanityCheck.Exp(sanityCheck, new(gmp.Int).Exp(a, n, n2), n3)
 	sanityCheck.Mul(sanityCheck, new(gmp.Int).Exp(b, n2, n3))
 	sanityCheck.Mod(sanityCheck, n3)
 
@@ -36,8 +33,7 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 		panic("cannot prove re-encryption because inputs are wrong")
 	}
 
-	bound1 := new(gmp.Int).Mul(n, sk.K)
-	x, err := GetRandomNumber(bound1, rand.Reader)
+	x, err := GetRandomNumberInMultiplicativeGroup(n, rand.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -47,11 +43,11 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 		return nil, err
 	}
 
-	hx := new(gmp.Int).Exp(h1, x, n2)
+	xn := new(gmp.Int).Exp(x, n, n2)
 	yn2 := new(gmp.Int).Exp(y, n2, n3)
 
-	// alpha = c^{h^x} * y^{n^2}
-	alpha := new(gmp.Int).Exp(ct1.C, hx, n3)
+	// alpha = c1^{x^n} * y^{n^2}
+	alpha := new(gmp.Int).Exp(ct1.C, xn, n3)
 	alpha.Mul(alpha, yn2)
 	alpha.Mod(alpha, n3)
 
@@ -59,24 +55,28 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 	// hashdata = c1 || c2 || r2 || s2 || alpha
 	chalBit := RandomOracleBit(ct1.C, ct2.C, x, y, alpha)
 
-	// e = x - chalBit * a
+	// e = x * (chalBit * a)^-1 mod phi(n)
 	e := new(gmp.Int).Set(x)
 	if chalBit {
-		e.Sub(e, a)
-		e.Mod(e, sk.Lambda)
+		ainv := new(gmp.Int).ModInverse(a, n2)
+		e.Mul(e, ainv)
+		e.Mod(e, n2)
 	}
 
 	f := new(gmp.Int).Set(y)
 	if chalBit {
 		s := sk.ExtractRandonness(ct1)
-		he := new(gmp.Int).Exp(h1, e, n2)
+		an := new(gmp.Int).Exp(a, n, n2)
+		en := new(gmp.Int).Exp(e, n, n2)
 
-		c := new(gmp.Int).Exp(s, new(gmp.Int).Exp(h1, a, n2), n3)
+		c := new(gmp.Int).Exp(s, an, n3)
 		c.Mul(c, b)
-		c.Exp(c, he, n3)
+		c.Exp(c, en, n3)
 		c.ModInverse(c, n3)
-		c.Mul(c, new(gmp.Int).Exp(s, hx, n3))
+
+		c.Mul(c, new(gmp.Int).Exp(s, xn, n3))
 		f.Mul(f, c)
+		f.Mod(f, n3)
 	}
 
 	proof := &DDLEQProof{
@@ -96,6 +96,7 @@ func (sk *SecretKey) ProveDDLEQ(ct1, ct2 *Ciphertext, a, b *gmp.Int) (*DDLEQProo
 func (pk *PublicKey) VerifyDDLEQProof(ct1 *Ciphertext, ct2 *Ciphertext, proof *DDLEQProof) bool {
 
 	// powers of n needed in the protocol
+	n := pk.N
 	n2 := pk.GetN2()
 	n3 := pk.GetN3()
 
@@ -108,13 +109,10 @@ func (pk *PublicKey) VerifyDDLEQProof(ct1 *Ciphertext, ct2 *Ciphertext, proof *D
 		check = ct2.C
 	}
 
-	// generators for randomness
-	h1 := pk.getGeneratorOfQuadraticResiduesForLevel(EncLevelOne)
-
-	he := new(gmp.Int).Exp(h1, proof.E, n2)
+	en := new(gmp.Int).Exp(proof.E, n, n2)
 	fn2 := new(gmp.Int).Exp(proof.F, n2, n3)
 
-	check.Exp(check, he, n3)
+	check.Exp(check, en, n3)
 	check.Mul(check, fn2)
 	check.Mod(check, n3)
 

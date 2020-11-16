@@ -12,11 +12,11 @@ func TestDDLEQProofCompleteness(t *testing.T) {
 
 		sk, pk := KeyGen(128)
 
-		inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(0)), EncLevelOne)
+		inner := pk.EncryptAtLevel(gmp.NewInt(int64(i*i)), EncLevelOne)
 		ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
-		ctr, r1, s1 := pk.NestedRandomize(ct)
+		ctr, a, b := pk.NestedRandomize(ct)
 
-		proof, err := sk.ProveDDLEQ(ct, ctr, r1, s1)
+		proof, err := sk.ProveDDLEQ(ct, ctr, a, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,7 +34,7 @@ func TestDDLEQProofSoundness(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		sk, pk := KeyGen(128)
 
-		inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(0)), EncLevelOne)
+		inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(i*i)), EncLevelOne)
 		ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
 		ctr, r1, s1 := pk.NestedRandomize(ct)
 		proof, _ := sk.ProveDDLEQ(ct, ctr, r1, s1)
