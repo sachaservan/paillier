@@ -33,8 +33,11 @@ func TestGenerators(t *testing.T) {
 	n2 := pk.GetN2()
 	n3 := pk.GetN2()
 
-	resL1 := new(gmp.Int).Exp(pk.h1, sk.Lambda, n2)
-	resL2 := new(gmp.Int).Exp(pk.h2, sk.Lambda, n3)
+	h1 := pk.getGeneratorOfQuadraticResiduesForLevel(EncLevelOne)
+	h2 := pk.getGeneratorOfQuadraticResiduesForLevel(EncLevelTwo)
+
+	resL1 := new(gmp.Int).Exp(h1, sk.Lambda, n2)
+	resL2 := new(gmp.Int).Exp(h2, sk.Lambda, n3)
 
 	if !reflect.DeepEqual(big.NewInt(1), ToBigInt(resL1)) {
 		t.Error("h1 is not a valid generator h_1^n = ", resL1, ", should be 1")

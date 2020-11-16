@@ -44,13 +44,15 @@ const DefaultEncryptionLevel EncryptionLevel = EncLevelOne
 // PublicKey contains all the values necessary to encrypt and perform
 // homomorphic operations over ciphertexts
 type PublicKey struct {
-	N  *gmp.Int //N=p*q
-	G  *gmp.Int // usually G is set to N+1
+	N *gmp.Int //N=p*q
+	G *gmp.Int // usually G is set to N+1
+	H *gmp.Int // generator for quadratic residues mod N^2
+	K *gmp.Int // power of two = 2^|bits N / 2| for statistical secuirity
+
 	n2 *gmp.Int // cache value of N^2
 	n3 *gmp.Int // cache value of N^3
-	h1 *gmp.Int
-	h2 *gmp.Int
-	K  *gmp.Int // power of two = 2^|bits N / 2|
+	h1 *gmp.Int // cache for generator of QR mod N^2
+	h2 *gmp.Int // cache for generator of QR mod N^3
 }
 
 // SecretKey contains the necessary values needed to decrypt a ciphertext
@@ -100,13 +102,7 @@ func (pk *PublicKey) GetN3() *gmp.Int {
 //     [DJN 10]: Ivan Damgard, Mads Jurik, Jesper Buus Nielsen, (2010)
 //               A Generalization of Paillier’s Public-Key System
 //               with Applications to Electronic Voting
-//               Aarhus University, Dept. of Computer Science, BRICS
-//
-// If secure=true then will generate safe primes for the modulus
-// this flag is useful to have for correctness testing since generating safe primes
-// takes up to several minutes to generate
-// https://crypto.stackexchange.com/questions/66076/how-to-efficiently-generate-a-random-safe-prime-of-given-length
-//
+//               Aarhus University, Dept. of Computer Science, BRICSs
 func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 
 	if secparam%2 != 0 {
@@ -155,26 +151,22 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 	k := new(gmp.Int).Exp(TwoBigInt, gmp.NewInt(int64(secparam/2)), nil)
 	lambda := computePhi(p, q)
 
+	// compute generators for randomness (only used for alternative encryption)
+	// see "Akternative encryption" section in
+	// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.67.9647&rep=rep1&type=pdf
+	// for explanation on how to generate a generator for the group of quadratic residues
 	h, err := GetRandomGeneratorOfTheQuadraticResidue(n, rand.Reader)
 	if err != nil {
 		panic(err)
 	}
 
-	// see "Akternative encryption" section in
-	// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.67.9647&rep=rep1&type=pdf
-	// for explanation on how to generate a generator for the group of quadratic residues
-	h1 := new(gmp.Int).Sub(n, h)
-	h1.Exp(h1, n, n2)
-	h2 := new(gmp.Int).Sub(n2, h)
-	h2.Exp(h2, n2, n3)
-
 	pk := &PublicKey{
 		N:  n,
 		G:  g,
-		h1: h1,
-		h2: h2,
+		H:  h,
 		K:  k,
 		n2: n2,
+		n3: n3,
 	}
 
 	sk := &SecretKey{
@@ -184,15 +176,6 @@ func KeyGen(secparam int) (*SecretKey, *PublicKey) {
 	}
 
 	return sk, pk
-}
-
-// ProbablySafePrime reports whether x is probably safe prime, by calling big.Int.ProbablyPrime(n)
-// on x as well as on (x-1)/2.
-// If x is safe prime, ProbablySafePrime returns true.
-// If x is chosen randomly and not safe prime, ProbablyPrime probably returns false.
-func probablySafePrime(x *big.Int, n int) bool {
-	y := new(big.Int).Rsh(x, 1)
-	return y.ProbablyPrime(n)
 }
 
 // EncryptWithR encrypts a plaintext into a cypher one with random `r` specified
@@ -409,7 +392,18 @@ func (pk *PublicKey) getModuliForLevel(level EncryptionLevel) (int, *gmp.Int, *g
 func (pk *PublicKey) getGeneratorOfQuadraticResiduesForLevel(level EncryptionLevel) *gmp.Int {
 
 	if level == EncLevelOne {
+		if pk.h1 == nil {
+			h1 := new(gmp.Int).Sub(pk.N, pk.H)
+			h1.Exp(h1, pk.N, pk.GetN2())
+			pk.h1 = h1
+		}
 		return pk.h1
+	}
+
+	if pk.h2 == nil {
+		h2 := new(gmp.Int).Sub(pk.GetN2(), pk.H)
+		h2.Exp(h2, pk.GetN2(), pk.GetN3())
+		pk.h2 = h2
 	}
 
 	return pk.h2
