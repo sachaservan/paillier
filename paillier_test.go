@@ -62,6 +62,19 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 }
 
+func TestNestedEncryptDecrypt(t *testing.T) {
+
+	for i := 1; i < 1000; i++ {
+		sk, pk := KeyGen(64)
+		value := gmp.NewInt(int64(i))
+		ciphertext := pk.NestedEncrypt(value)
+		returnedValue := ToBigInt(sk.NestedDecrypt(ciphertext))
+		if !reflect.DeepEqual(big.NewInt(int64(i)), returnedValue) {
+			t.Error("wrong decryption ", returnedValue, " is not ", value)
+		}
+	}
+}
+
 func TestEncryptDecryptLevel2(t *testing.T) {
 
 	for i := 1; i < 10; i++ {
@@ -101,7 +114,7 @@ func TestDecryptNestedCiphertext(t *testing.T) {
 		value := gmp.NewInt(int64(i))
 		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
 		ciphertextLevelTwo := pk.EncryptAtLevel(ciphertextLevelOne.C, EncLevelTwo) // double encryption
-		firstDecryption := sk.DecryptNestedCiphertext(ciphertextLevelTwo)
+		firstDecryption := sk.DecryptNestedCiphertextLayer(ciphertextLevelTwo)
 		secondDecryption := sk.Decrypt(firstDecryption)
 
 		returnedValue := ToBigInt(secondDecryption)

@@ -193,6 +193,15 @@ func (pk *PublicKey) Encrypt(m *gmp.Int) *Ciphertext {
 	return pk.EncryptAtLevel(m, DefaultEncryptionLevel)
 }
 
+// NestedEncrypt encrypts and encryption of the plaintext.
+// The plain text must be smaller that
+// N and bigger than or equal zero.
+// Returns an error if an error has be returned by io.Reader.
+func (pk *PublicKey) NestedEncrypt(m *gmp.Int) *Ciphertext {
+	ct := pk.EncryptAtLevel(m, EncLevelOne)
+	return pk.EncryptAtLevel(ct.C, EncLevelTwo)
+}
+
 // EncryptWithRAtLevel encrypts a plaintext as EncryptWithR but in the space N^s
 func (pk *PublicKey) EncryptWithRAtLevel(m *gmp.Int, r *gmp.Int, level EncryptionLevel) *Ciphertext {
 
@@ -330,9 +339,17 @@ func (sk *SecretKey) recoveryAlgorithm(a *gmp.Int, s int) *gmp.Int {
 	return i
 }
 
-// DecryptNestedCiphertext peels off one layer of decryption for a nested ciphertext
+// NestedDecrypt decrypts a nested encryption
+// e.g. returns c if given [[c]]
+func (sk *SecretKey) NestedDecrypt(ct *Ciphertext) *gmp.Int {
+
+	ct1 := sk.DecryptNestedCiphertextLayer(ct)
+	return sk.Decrypt(ct1)
+}
+
+// DecryptNestedCiphertextLayer peels off one layer of decryption for a nested ciphertext
 // e.g. returns [c] if given [[c]]
-func (sk *SecretKey) DecryptNestedCiphertext(ct *Ciphertext) *Ciphertext {
+func (sk *SecretKey) DecryptNestedCiphertextLayer(ct *Ciphertext) *Ciphertext {
 
 	if ct.Level == EncLevelOne {
 		panic("no nested ciphertexts to recover")

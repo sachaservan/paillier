@@ -11,8 +11,7 @@ func TestDDLEQProofInstanceCompleteness(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		sk, pk := KeyGen(128)
 
-		inner := pk.EncryptAtLevel(gmp.NewInt(int64(i*i)), EncLevelOne)
-		ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
+		ct := pk.NestedEncrypt(gmp.NewInt(int64(i * i)))
 		ctr, a, b := pk.NestedRandomize(ct)
 
 		proof, err := sk.proveDDLEQInstance(ct, ctr, a, b)
@@ -36,8 +35,7 @@ func TestDDLEQProofCompleteness(t *testing.T) {
 
 		sk, pk := KeyGen(128)
 
-		inner := pk.EncryptAtLevel(gmp.NewInt(int64(i*i)), EncLevelOne)
-		ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
+		ct := pk.NestedEncrypt(gmp.NewInt(int64(i * i)))
 		ctr, a, b := pk.NestedRandomize(ct)
 
 		proof, err := sk.ProveDDLEQ(secpar, ct, ctr, a, b)
@@ -60,8 +58,7 @@ func TestDDLEQProofSoundness(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		sk, pk := KeyGen(128)
 
-		inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(i*i)), EncLevelOne)
-		ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
+		ct := pk.NestedEncrypt(gmp.NewInt(int64(i * i)))
 		ctr, r1, s1 := pk.NestedRandomize(ct)
 		proof, _ := sk.ProveDDLEQ(secpar, ct, ctr, r1, s1)
 
@@ -79,8 +76,7 @@ func BenchmarkProve(b *testing.B) {
 	secpar := 40
 
 	sk, pk := KeyGen(1024)
-	inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(0)), EncLevelOne)
-	ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
+	ct := pk.NestedEncrypt(gmp.NewInt(0))
 	ctr, r1, s1 := pk.NestedRandomize(ct)
 
 	b.ResetTimer()
@@ -95,8 +91,7 @@ func BenchmarkVerify(b *testing.B) {
 	secpar := 40
 
 	sk, pk := KeyGen(1024)
-	inner := pk.AltEncryptAtLevel(gmp.NewInt(int64(0)), EncLevelOne)
-	ct := pk.EncryptAtLevel(inner.C, EncLevelTwo)
+	ct := pk.NestedEncrypt(gmp.NewInt(0))
 	ctr, r1, s1 := pk.NestedRandomize(ct)
 	proof, _ := sk.ProveDDLEQ(secpar, ct, ctr, r1, s1)
 
