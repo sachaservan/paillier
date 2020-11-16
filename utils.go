@@ -22,14 +22,23 @@ func Factorial(n int) *gmp.Int {
 	return ret
 }
 
-// GetRandomNumberInMultiplicativeGroup returns a random element in the group of all the elements in Z/nZ that
-func GetRandomNumberInMultiplicativeGroup(n *gmp.Int, random io.Reader) (*gmp.Int, error) {
-	rBig, err := rand.Int(random, ToBigInt(n))
+// GetRandomNumber returns a random value less than n
+func GetRandomNumber(n *gmp.Int, random io.Reader) (*gmp.Int, error) {
+	r, err := rand.Int(random, ToBigInt(n))
 	if err != nil {
 		return nil, err
 	}
 
-	r := ToGmpInt(rBig)
+	return ToGmpInt(r), nil
+}
+
+// GetRandomNumberInMultiplicativeGroup returns a random element in the group of all the elements in Z/nZ that
+func GetRandomNumberInMultiplicativeGroup(n *gmp.Int, random io.Reader) (*gmp.Int, error) {
+
+	r, err := GetRandomNumber(n, random)
+	if err != nil {
+		return nil, err
+	}
 
 	zero := gmp.NewInt(0)
 	one := gmp.NewInt(1)
@@ -37,7 +46,6 @@ func GetRandomNumberInMultiplicativeGroup(n *gmp.Int, random io.Reader) (*gmp.In
 		return GetRandomNumberInMultiplicativeGroup(n, random)
 	}
 	return r, nil
-
 }
 
 // GetRandomGeneratorOfTheQuadraticResidue return a random generator of RQn with high probability.
