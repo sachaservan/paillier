@@ -143,7 +143,7 @@ func TestToFromBytes(t *testing.T) {
 }
 
 func BenchmarkDecrypt(b *testing.B) {
-	sk, pk := KeyGen(512)
+	sk, pk := KeyGen(1024)
 	c := pk.Encrypt(gmp.NewInt(12))
 
 	for i := 0; i < b.N; i++ {
@@ -152,7 +152,7 @@ func BenchmarkDecrypt(b *testing.B) {
 }
 
 func BenchmarkEncrypt(b *testing.B) {
-	_, pk := KeyGen(512)
+	_, pk := KeyGen(1024)
 
 	for i := 0; i < b.N; i++ {
 		Encrypt(gmp.NewInt(100), pk)
