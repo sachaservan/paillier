@@ -26,6 +26,26 @@ func TestL(t *testing.T) {
 	}
 }
 
+func TestGenerators(t *testing.T) {
+
+	sk, pk := KeyGen(64)
+
+	n2 := pk.GetN2()
+	n3 := pk.GetN2()
+
+	resL1 := new(gmp.Int).Exp(pk.h1, sk.Lambda, n2)
+	resL2 := new(gmp.Int).Exp(pk.h2, sk.Lambda, n3)
+
+	if !reflect.DeepEqual(big.NewInt(1), ToBigInt(resL1)) {
+		t.Error("h1 is not a valid generator h_1^n = ", resL1, ", should be 1")
+	}
+
+	if !reflect.DeepEqual(big.NewInt(1), ToBigInt(resL2)) {
+		t.Error("h1 is not a valid generator h_2^n = ", resL2, ", should be 1")
+	}
+
+}
+
 func TestEncryptDecrypt(t *testing.T) {
 
 	for i := 1; i < 1000; i++ {
@@ -39,7 +59,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 }
 
-func TestEncryptDecryptLevel3(t *testing.T) {
+func TestEncryptDecryptLevel2(t *testing.T) {
 
 	for i := 1; i < 10; i++ {
 		sk, pk := KeyGen(64)
@@ -58,10 +78,10 @@ func TestDoubleEncryptDecrypt(t *testing.T) {
 	for i := 1; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
-		firstDecryption := sk.Decrypt(ciphertextLevelThree)
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
+		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelTwo := pk.EncryptAtLevel(ciphertextLevelOne.C, EncLevelTwo) // double encryption
+		firstDecryption := sk.Decrypt(ciphertextLevelTwo)
+		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne, RegularEncryption}
 		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
 
 		returnedValue := ToBigInt(secondDecryption)
@@ -71,73 +91,18 @@ func TestDoubleEncryptDecrypt(t *testing.T) {
 	}
 }
 
-func TestDoubleEncryptRandomize(t *testing.T) {
+func TestDecryptNestedCiphertext(t *testing.T) {
 
 	for i := 1; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
-
-		randomizedLevelThree := pk.NestedRandomize(ciphertextLevelThree)
-
-		firstDecryption := sk.Decrypt(randomizedLevelThree)
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
-
-		if reflect.DeepEqual(ToBigInt(firstDecryptionAsLevel2Ciphertext.C), ToBigInt(ciphertextLevelTwo.C)) {
-			t.Error("did not randomized inner ciphertext ", firstDecryptionAsLevel2Ciphertext.C, " is equal to ", ciphertextLevelTwo.C)
-		}
-
-		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
+		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelTwo := pk.EncryptAtLevel(ciphertextLevelOne.C, EncLevelTwo) // double encryption
+		firstDecryption := sk.DecryptNestedCiphertext(ciphertextLevelTwo)
+		secondDecryption := sk.Decrypt(firstDecryption)
 
 		returnedValue := ToBigInt(secondDecryption)
 		if !reflect.DeepEqual(big.NewInt(int64(i)), returnedValue) {
-			t.Error("wrong decryption ", returnedValue, " is not ", value)
-		}
-	}
-}
-
-func TestDoubleEncryptAdd(t *testing.T) {
-
-	for i := 1; i < 1000; i++ {
-		sk, pk := KeyGen(64)
-		value := gmp.NewInt(int64(i))
-
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
-
-		ciphertextLevelThree = pk.NestedAdd(ciphertextLevelThree, ciphertextLevelTwo) // add the value to itself in the nested encryption
-
-		firstDecryption := sk.Decrypt(ciphertextLevelThree)
-
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
-		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
-
-		returnedValue := ToBigInt(secondDecryption)
-		if !reflect.DeepEqual(big.NewInt(int64(2*i)), returnedValue) {
-			t.Error("wrong decryption ", returnedValue, " is not ", value)
-		}
-	}
-}
-
-func TestDoubleEncryptSub(t *testing.T) {
-
-	for i := 1; i < 1000; i++ {
-		sk, pk := KeyGen(64)
-		value := gmp.NewInt(int64(i))
-
-		ciphertextLevelTwo := pk.EncryptAtLevel(value, EncLevelOne)
-		ciphertextLevelThree := pk.EncryptAtLevel(ciphertextLevelTwo.C, EncLevelTwo) // double encryption
-
-		ciphertextLevelThree = pk.NestedSub(ciphertextLevelThree, ciphertextLevelTwo) // add the value to itself in the nested encryption
-
-		firstDecryption := sk.Decrypt(ciphertextLevelThree)
-
-		firstDecryptionAsLevel2Ciphertext := &Ciphertext{firstDecryption, EncLevelOne}
-		secondDecryption := sk.Decrypt(firstDecryptionAsLevel2Ciphertext)
-
-		returnedValue := ToBigInt(secondDecryption)
-		if !reflect.DeepEqual(big.NewInt(int64(0)), returnedValue) {
 			t.Error("wrong decryption ", returnedValue, " is not ", value)
 		}
 	}
@@ -146,7 +111,7 @@ func TestDoubleEncryptSub(t *testing.T) {
 func TestToFromBytes(t *testing.T) {
 
 	for i := 1; i < 1000; i++ {
-		_, pk := KeyGen(10)
+		_, pk := KeyGen(64)
 		ciphertext := pk.Encrypt(gmp.NewInt(100))
 		ctBytes := ciphertext.Bytes()
 		ctRecoverd, err := pk.NewCiphertextFromBytes(ctBytes)
