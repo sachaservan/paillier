@@ -174,11 +174,37 @@ func BenchmarkAdd(b *testing.B) {
 func BenchmarkConstMul(b *testing.B) {
 	_, pk := KeyGen(1024)
 	c := pk.Encrypt(gmp.NewInt(12))
-	s := gmp.NewInt(5)
+	s := gmp.NewInt(50)
+	s.Exp(s, s, pk.N)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		pk.ConstMult(c, s)
+	}
+}
+
+func BenchmarkConstMul2(b *testing.B) {
+	_, pk := KeyGen(2048)
+	c := pk.Encrypt(gmp.NewInt(12))
+	s := gmp.NewInt(50)
+	s.Exp(s, s, pk.GetN2())
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		pk.ConstMult(c, s)
+	}
+}
+
+func BenchmarkExpGmpInt(b *testing.B) {
+
+	_, pk := KeyGen(1024)
+	s := gmp.NewInt(50)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		s.Exp(s, s, pk.GetN2())
 	}
 }

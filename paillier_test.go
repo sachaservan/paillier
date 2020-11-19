@@ -122,6 +122,19 @@ func TestDecryptNestedCiphertext(t *testing.T) {
 			t.Error("wrong decryption ", returnedValue, " is not ", value)
 		}
 	}
+
+	for i := 1; i < 1000; i++ {
+		sk, pk := KeyGen(64)
+		value := gmp.NewInt(int64(i))
+		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
+		ciphertextLevelTwo := pk.EncryptAtLevel(ciphertextLevelOne.C, EncLevelTwo) // double encryption
+		secondDecryption := sk.NestedDecrypt(ciphertextLevelTwo)
+
+		returnedValue := ToBigInt(secondDecryption)
+		if !reflect.DeepEqual(big.NewInt(int64(i)), returnedValue) {
+			t.Error("wrong decryption ", returnedValue, " is not ", value)
+		}
+	}
 }
 
 func TestToFromBytes(t *testing.T) {
