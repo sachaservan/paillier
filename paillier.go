@@ -344,6 +344,13 @@ func (sk *SecretKey) recoveryAlgorithm(a *gmp.Int, s int) *gmp.Int {
 func (sk *SecretKey) NestedDecrypt(ct *Ciphertext) *gmp.Int {
 
 	ct1 := sk.DecryptNestedCiphertextLayer(ct)
+
+	// edge case can happen when performing operations
+	// over ciphertexts which results in g^0^g^0 = g^0
+	if ct1.C.Cmp(ZeroBigInt) == 0 {
+		return gmp.NewInt(0)
+	}
+
 	return sk.Decrypt(ct1)
 }
 

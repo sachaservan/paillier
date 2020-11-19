@@ -91,7 +91,7 @@ func TestEncryptDecryptLevel2(t *testing.T) {
 
 func TestDoubleEncryptDecrypt(t *testing.T) {
 
-	for i := 1; i < 1000; i++ {
+	for i := 0; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
 		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
@@ -109,7 +109,7 @@ func TestDoubleEncryptDecrypt(t *testing.T) {
 
 func TestDecryptNestedCiphertext(t *testing.T) {
 
-	for i := 1; i < 1000; i++ {
+	for i := 0; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
 		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
@@ -123,7 +123,7 @@ func TestDecryptNestedCiphertext(t *testing.T) {
 		}
 	}
 
-	for i := 1; i < 1000; i++ {
+	for i := 0; i < 1000; i++ {
 		sk, pk := KeyGen(64)
 		value := gmp.NewInt(int64(i))
 		ciphertextLevelOne := pk.EncryptAtLevel(value, EncLevelOne)
